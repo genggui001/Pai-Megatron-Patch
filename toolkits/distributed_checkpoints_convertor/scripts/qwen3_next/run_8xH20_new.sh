@@ -1,9 +1,9 @@
 #!/bin/bash
-set -e
+set -xe
 CURRENT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 CONVERTOR_DIR=$( dirname $( dirname ${CURRENT_DIR}))
 MEGATRON_PATCH_PATH=$( dirname $( dirname ${CONVERTOR_DIR}))
-export PYTHONPATH=${MEGATRON_PATCH_PATH}:${MEGATRON_PATCH_PATH}/backends/megatron/Megatron-LM-250624:${CONVERTOR_DIR}/impl:$PYTHONPATH
+export PYTHONPATH=${MEGATRON_PATCH_PATH}:${MEGATRON_PATCH_PATH}/backends/megatron/Megatron-LM-250908:${CONVERTOR_DIR}/impl:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=true # for PyTorch >= 2.6
 
@@ -92,60 +92,35 @@ GPT_MODEL_ARGS=(
     --swiglu
     --disable-bias-linear
     --seq-length 1
-    --attention-backend auto # Can use (flash/fused/unfused/local)
-    --position-embedding-type mrope
-    --group-query-attention
-    --kv-channels 128
-    --qk-layernorm
     --max-position-embeddings 262144
-    --padded-vocab-size 151936
-    --mrope-section 24 20 20
+    --attention-backend auto # Can use (flash/fused/unfused/local)
+    --position-embedding-type rope
+    --kv-channels 256
+    --qk-layernorm
+    --group-query-attention
 )
 
-if [ $MODEL_SIZE = 4B ]; then
+if [ $MODEL_SIZE = A3B ]; then
     GPT_MODEL_ARGS+=(
-        --num-layers 36
-        --hidden-size 2560
-        --ffn-hidden-size 9728
-        --num-attention-heads 32
-        --num-query-groups 8
-    )
-    if [ -z  "$MODEL_PARALLEL_ARGS" ]; then
-        MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 1
-            --pipeline-model-parallel-size 4
-        )
-    fi
-elif [ $MODEL_SIZE = 8B ]; then
-    GPT_MODEL_ARGS+=(
-        --num-layers 36
-        --hidden-size 4096
-        --ffn-hidden-size 12288
-        --num-attention-heads 32
-        --untie-embeddings-and-output-weights
-        --num-query-groups 8
-    )
-    if [ -z  "$MODEL_PARALLEL_ARGS" ]; then
-        MODEL_PARALLEL_ARGS=(
-            --tensor-model-parallel-size 1
-            --pipeline-model-parallel-size 4
-        )
-    fi
-elif [ $MODEL_SIZE = A3B ]; then
-    GPT_MODEL_ARGS+=(
-        --num-layers 48
+        --num-layers 96
         --hidden-size 2048
-        --ffn-hidden-size 6144
-        --moe-ffn-hidden-size 768
-        --num-attention-heads 32
+        --ffn-hidden-size 5120
+        --moe-ffn-hidden-size 512
+        --num-attention-heads 16
+        --hybrid-attention-ratio 0.125 
+        --hybrid-mlp-ratio 0.5 
+        --hybrid-override-pattern M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*- 
+        --is-hybrid-model
         --untie-embeddings-and-output-weights
+        --rotary-base 10000000
+        --rotary-percent 0.25
         --moe-grouped-gemm
         --moe-router-score-function softmax
         --moe-token-dispatcher-type alltoall
-        --moe-router-topk 8
-        --moe-layer-freq "'([1]*48)'"
-        --num-experts 128
-        --num-query-groups 4
+        --moe-router-topk 10
+        --num-experts 512
+        --num-query-groups 8
+        --moe-shared-expert-intermediate-size 512 
     )
     if [ -z  "$MODEL_PARALLEL_ARGS" ]; then
         MODEL_PARALLEL_ARGS=(
@@ -184,12 +159,14 @@ CONVERT_ARGS=(
     --model-type GPT 
     --load-dir ${LOAD_DIR}
     --save-dir ${SAVE_DIR}
+    
+    --padded-vocab-size 151936
     --no-load-optim
     --no-load-rng
     --logging-level 1
-    --synchronizer qwen3_vl
-    --pretrain-script qwen3_vl.pretrain_qwen
-    --auto-model AutoModelForImageTextToText
+
+    --synchronizer qwen3_next
+    --pretrain-script qwen3_next.model_provider
     --debug
 )
 

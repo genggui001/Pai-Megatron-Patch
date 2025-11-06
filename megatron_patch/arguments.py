@@ -154,6 +154,8 @@ def get_patch_args(parser):
     )
 
     group.add_argument("--patch-tokenizer-type", type=str, help="patch-tokenizer-type")
+    # for ener
+    group.add_argument("--patch-tokenizer-path", type=str, help="patch-tokenizer-path")
 
     group.add_argument(
         "--use-alibi-mask",

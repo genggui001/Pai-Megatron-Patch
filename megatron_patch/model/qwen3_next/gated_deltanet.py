@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.process_groups_config import ProcessGroupCollection
 from megatron.core.tensor_parallel import get_cuda_rng_tracker
@@ -57,6 +58,7 @@ except ImportError:
 
 try:
     from fla.ops.gated_delta_rule import chunk_gated_delta_rule
+    from fla.ops.utils import prepare_sequence_ids
 
     HAVE_FLA = True
 except ImportError:
@@ -274,11 +276,25 @@ class GatedDeltaNetMixer(MambaMixer):
         self,
         hidden_states,
         inference_context=None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
         *,
         inference_params: Optional[BaseInferenceContext] = None,
     ):
 
-        
+        if packed_seq_params is not None:
+            if packed_seq_params.cu_seqlens_q_padded is not None:
+                cu_seqlens = packed_seq_params.cu_seqlens_q_padded
+            else:
+                cu_seqlens = packed_seq_params.cu_seqlens_q
+        else:
+            cu_seqlens = None
+
+        if cu_seqlens is not None:
+            seq_idx = prepare_sequence_ids(cu_seqlens).to(torch.int32).unsqueeze(0)
+            # print(seq_idx)
+        else:
+            seq_idx = None
+
         seq_len, batch_size, dim = hidden_states.shape
 
         zVQKba, _ = self.in_proj(hidden_states)
@@ -297,13 +313,14 @@ class GatedDeltaNetMixer(MambaMixer):
             dim=-1,
         )
 
-        VQK = rearrange(VQK, "b l d -> b d l").contiguous()
+        VQK = rearrange(VQK, "b l d -> b d l")
 
         VQK = causal_conv1d_fn(
             x=VQK,
             weight=rearrange(self.cp.get_conv1d_weight(), "d 1 w -> d w"),
             bias=self.cp.get_conv1d_bias(),
             activation=self.activation,
+            seq_idx=seq_idx,
         )
         
 
@@ -351,6 +368,7 @@ class GatedDeltaNetMixer(MambaMixer):
             initial_state=None,
             output_final_state=False,
             use_qk_l2norm_in_kernel=True,
+            cu_seqlens=cu_seqlens,
         )
 
         if self.rmsnorm:

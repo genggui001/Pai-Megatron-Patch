@@ -7,8 +7,7 @@ from megatron.core.extensions.transformer_engine import (
     TENorm
 )
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.ssm.mamba_block import MambaStack, MambaStackSubmodules
-from megatron.core.ssm.mamba_layer import MambaLayer, MambaLayerSubmodules
+
 from megatron.core.ssm.mamba_mixer import MambaMixerSubmodules
 from megatron.core.transformer.attention import SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnMaskType
@@ -17,7 +16,8 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 
 from megatron_patch.model.qwen3_next.gated_attention import GatedSoftmaxAttention
-
+from megatron_patch.model.qwen3_next.mamba_block import MambaStack, MambaStackSubmodules
+from megatron_patch.model.qwen3_next.mamba_layer import MambaLayer, MambaLayerSubmodules
 
 from megatron.core.models.backends import BackendSpecProvider, LocalSpecProvider
 from megatron.core.transformer.moe.moe_layer import MoELayer, MoESubmodules

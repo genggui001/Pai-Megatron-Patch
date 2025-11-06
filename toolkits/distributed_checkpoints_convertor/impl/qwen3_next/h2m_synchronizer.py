@@ -177,11 +177,23 @@ class HF2MGSynchronizer(_HF2MGSynchronizer):
             # qg: [num_heads x 2 x head_dim, input_dim] 
             # -> [num_query_group x num_querys_per_group x 2 x head_dim, input_dim]
             # -> [num_query_group, 2 x num_querys_per_group x head_dim, input_dim]
+
+            tmp_k_proj_weight = self.load_tensor(hf_attn.k_proj.weight).reshape((2, 1, 256, -1))
+            tmp_v_proj_weight = self.load_tensor(hf_attn.v_proj.weight).reshape((2, 1, 256, -1))
+
+            print(tmp_k_proj_weight.shape, tmp_v_proj_weight.shape)
+
+            tmp_k_proj_weight = torch.cat([tmp_k_proj_weight, tmp_k_proj_weight, tmp_k_proj_weight, tmp_k_proj_weight], dim=1)
+            tmp_v_proj_weight = torch.cat([tmp_v_proj_weight, tmp_v_proj_weight, tmp_v_proj_weight, tmp_v_proj_weight], dim=1)
+            
+            print(tmp_k_proj_weight.shape, tmp_v_proj_weight.shape)
+
             attn_proj_weight = torch.cat([
                 self.load_tensor(hf_attn.q_proj.weight).reshape((num_query_groups, num_querys_per_group, 2, dim, -1)).transpose(1, 2).flatten(1, 3),
-                self.load_tensor(hf_attn.k_proj.weight).reshape((num_query_groups, dim, -1)),
-                self.load_tensor(hf_attn.v_proj.weight).reshape((num_query_groups, dim, -1)),
+                tmp_k_proj_weight.reshape((num_query_groups, dim, -1)),
+                tmp_v_proj_weight.reshape((num_query_groups, dim, -1)),
             ], dim=1)
+            
         self.copy(
             attn_proj_weight, 
             attn.linear_qgkv.weight,

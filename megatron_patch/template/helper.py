@@ -32,7 +32,9 @@ from megatron.core.packed_seq_params import PackedSeqParams
 from megatron_patch.data.utils import (
     get_batch_on_this_tp_rank_original, 
     get_batch_on_this_tp_rank_idxmap_sft,
-    get_position_id_on_this_tp_rank_idxmap_sft_packing
+    get_batch_on_this_tp_rank_energon_sft_packing,
+    get_position_id_on_this_tp_rank_idxmap_sft_packing,
+    get_position_id_on_this_tp_rank_energon_sft_packing,
 )
 
 def get_batch(data_iterator):
@@ -42,8 +44,11 @@ def get_batch(data_iterator):
     # TODO: this is pretty hacky, find a better way
     if (not mpu.is_pipeline_first_stage()) and (not mpu.is_pipeline_last_stage()):
         packed_seq_params = None
-        if args.dataset == 'MMAP' and args.train_mode == "finetune" and args.reset_position_ids:
-            position_ids = get_position_id_on_this_tp_rank_idxmap_sft_packing(data_iterator)
+        if (args.dataset == 'MMAP' or args.dataset == 'ENERGON') and args.train_mode == "finetune" and args.reset_position_ids:
+            if args.dataset == 'MMAP':
+                position_ids = get_position_id_on_this_tp_rank_idxmap_sft_packing(data_iterator)
+            elif args.dataset == 'ENERGON':
+                position_ids = get_position_id_on_this_tp_rank_energon_sft_packing(data_iterator)
             position_ids = position_ids[0] # shape: [seq_length]
             start_indices = (position_ids == 0).nonzero(as_tuple=True)[0]
             seqlens = start_indices[1:] - start_indices[:-1]
@@ -51,7 +56,11 @@ def get_batch(data_iterator):
             cu_seqlens = torch.zeros(start_indices.shape[0] + 1, device=position_ids.device, dtype=torch.int)
             cu_seqlens[1:-1] = torch.cumsum(seqlens, dim=0)
             cu_seqlens[-1] = position_ids.shape[0]
-            max_seqlen = torch.max(seqlens.max(), position_ids.max() + 1)
+            # fix position_ids = [0,1,...,max] case
+            if seqlens.shape[0] == 0:
+                max_seqlen = position_ids.max() + 1
+            else:
+                max_seqlen = torch.max(seqlens.max(), position_ids.max() + 1)
             packed_seq_params = PackedSeqParams(
                 cu_seqlens_q=cu_seqlens,
                 cu_seqlens_kv=cu_seqlens,
@@ -80,12 +89,16 @@ def get_batch(data_iterator):
             num_seqs,
             None
         )
-    elif args.dataset == 'MMAP':
+    elif args.dataset == 'MMAP' or args.dataset == 'ENERGON':
         # get batches based on the TP rank you are on
         if args.train_mode == "pretrain":
             batch = get_batch_on_this_tp_rank(data_iterator)
-        else:
+        elif args.dataset == 'ENERGON':
+            batch = get_batch_on_this_tp_rank_energon_sft_packing(data_iterator)
+        elif args.dataset == 'MMAP':
             batch = get_batch_on_this_tp_rank_idxmap_sft(data_iterator, per_seq_average=True)
+        else:
+            raise ValueError('The dataset should only be used for pretrain, finetune ENERGON finetune MMAP!')
         
         packed_seq_params = None
         if args.reset_position_ids:
@@ -100,7 +113,11 @@ def get_batch(data_iterator):
                 cu_seqlens = torch.zeros(start_indices.shape[0] + 1, device=position_ids.device, dtype=torch.int)
                 cu_seqlens[1:-1] = torch.cumsum(seqlens, dim=0)
                 cu_seqlens[-1] = position_ids.shape[0]
-                max_seqlen = torch.max(seqlens.max(), position_ids.max() + 1)
+                # fix position_ids = [0,1,...,max] case
+                if seqlens.shape[0] == 0:
+                    max_seqlen = position_ids.max() + 1
+                else:
+                    max_seqlen = torch.max(seqlens.max(), position_ids.max() + 1)
                 packed_seq_params = PackedSeqParams(
                     cu_seqlens_q=cu_seqlens,
                     cu_seqlens_kv=cu_seqlens,
@@ -192,10 +209,12 @@ def forward_step(data_iterator, model):
         # NOTE: MTP-head (since 0328) requires loss_mask to compute correct loss scale.
         input_kwargs['loss_mask'] = loss_mask
     
-    if 'packed_seq_params' in inspect.signature(model.forward).parameters:
-        input_kwargs['packed_seq_params'] = packed_seq_params
-    else:
-        assert packed_seq_params is None, f"Sequence Packing is not supported for {model}"
+    # if 'packed_seq_params' in inspect.signature(model.forward).parameters:
+    #     input_kwargs['packed_seq_params'] = packed_seq_params
+    # else:
+    #     assert packed_seq_params is None, f"Sequence Packing is not supported for {model}"
+    
+    input_kwargs['packed_seq_params'] = packed_seq_params
 
     output_tensor = model(**input_kwargs)
 
