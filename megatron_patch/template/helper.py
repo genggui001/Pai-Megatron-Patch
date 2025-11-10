@@ -205,9 +205,9 @@ def forward_step(data_iterator, model):
         'labels': labels
     }
 
-    if 'loss_mask' in inspect.signature(model.forward).parameters:
-        # NOTE: MTP-head (since 0328) requires loss_mask to compute correct loss scale.
-        input_kwargs['loss_mask'] = loss_mask
+    # if 'loss_mask' in inspect.signature(model.forward).parameters:
+    #     # NOTE: MTP-head (since 0328) requires loss_mask to compute correct loss scale.
+    #     input_kwargs['loss_mask'] = loss_mask
     
     # if 'packed_seq_params' in inspect.signature(model.forward).parameters:
     #     input_kwargs['packed_seq_params'] = packed_seq_params
@@ -215,6 +215,7 @@ def forward_step(data_iterator, model):
     #     assert packed_seq_params is None, f"Sequence Packing is not supported for {model}"
     
     input_kwargs['packed_seq_params'] = packed_seq_params
+    input_kwargs['loss_mask'] = loss_mask
 
     output_tensor = model(**input_kwargs)
 

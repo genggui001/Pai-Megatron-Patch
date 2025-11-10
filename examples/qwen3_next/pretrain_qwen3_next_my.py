@@ -14,6 +14,7 @@
 import datasets
 datasets.disable_caching()
 
+import re
 from functools import partial
 import torch
 import torch._dynamo
@@ -33,7 +34,7 @@ from megatron.training import print_rank_0
 from megatron.training.arguments import core_transformer_config_from_args
 
 from megatron_patch.model.qwen3_next.mamba_model import MambaModel
-from megatron_patch.model.qwen3_next.layer_specs import get_qwen3_next_layer_spec
+from megatron_patch.model.qwen3_next.layer_specs import get_qwen3_next_layer_spec, get_qwen3_mtp_block_spec
 from megatron_patch.model.qwen3_next.transformer_config import Qwen3NextTransformerConfig
 
 from qwen3_base_energon_dataloader_provider import train_valid_test_dataloaders_provider
@@ -60,6 +61,7 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None):
         position_embedding_type=args.position_embedding_type,
         rotary_percent=args.rotary_percent,
         rotary_base=args.rotary_base,
+        mtp_block_spec=get_qwen3_mtp_block_spec(args, config),
     )
 
     for name, param in model.named_parameters():
@@ -67,6 +69,12 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None):
         if "self_attention.linear_qgkv.weight" in name:
             print(f"Disabling parameter: {name}")
             param.requires_grad = False
+
+    #     # disable the expert parameters if the expert index is divisible by 4
+    #     expert_idx = re.findall(r"\.experts\..+\.weight([0-9]+)$", name)
+    #     if len(expert_idx) > 0 and int(expert_idx[0]) % 4 == 0:
+    #         print(f"Disabling parameter: {name}")
+    #         param.requires_grad = False
 
     return model
 

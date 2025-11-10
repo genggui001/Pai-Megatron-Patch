@@ -168,6 +168,7 @@ class MyTaskEncoder(
         self.ignore_decoder_errors = ignore_decoder_errors
 
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, model_max_length=seq_length)
+        self.pad_token_id = self.tokenizer.pad_token_id
         
         # self.no_think_start_flag = self.tokenizer("<|im_start|>assistant\n<think>\n\n</think>\n\n").input_ids 
         # self.think_start_flag = self.tokenizer("<|im_start|>assistant\n<think>\n").input_ids
@@ -321,8 +322,8 @@ class MyTaskEncoder(
                     for idx in range(start + len(self.no_think_start_flag), end):
                         labels[idx] = input_ids[idx]
 
-            input_ids = torch.LongTensor([input_ids[:-1]])
-            labels = torch.LongTensor([labels[1:]])
+            input_ids = torch.LongTensor([input_ids])
+            labels = torch.LongTensor([labels[1:] + [-100]])
 
             # 长度裁剪
             if input_ids.shape[-1] > self.train_max_len:
@@ -364,9 +365,9 @@ class MyTaskEncoder(
         if len(sample.text) == 0:
             raise SkipSample()
         
-        build_inputs = self.tokenizer(sample.text, return_tensors="pt")
-        input_ids = build_inputs['input_ids'][:, :-1]
-        labels = build_inputs['input_ids'][:, 1:]
+        build_inputs = self.tokenizer(sample.text)
+        input_ids = torch.LongTensor([build_inputs['input_ids']])
+        labels = torch.LongTensor([build_inputs['input_ids'][1:] + [-100]])
 
         # 长度裁剪
         if input_ids.shape[-1] > self.train_max_len:

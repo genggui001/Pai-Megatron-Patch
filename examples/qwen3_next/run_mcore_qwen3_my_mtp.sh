@@ -318,7 +318,7 @@ megatron_options="  \
         --lr ${LR} \
         --min-lr ${MIN_LR} \
         --lr-decay-style cosine \
-        --weight-decay 0.01 \
+        --weight-decay 0.1 \
         --adam-beta1 0.9 \
         --adam-beta2 0.95 \
         --clip-grad 1.0 \
@@ -331,6 +331,8 @@ megatron_options="  \
         --micro-batch-size ${BATCH_SIZE} \
         --global-batch-size ${GLOBAL_BATCH_SIZE} \
         --num-layers ${NUM_LAYERS} \
+        --mtp-num-layers 1 \
+        --mtp-loss-scaling-factor 0.1 \
         --hidden-size ${HIDDEN_SIZE} \
         --num-attention-heads ${NUM_ATTENTION_HEADS} \
         --ffn-hidden-size ${INTERMEDIATE_SIZE} \
@@ -348,6 +350,7 @@ megatron_options="  \
         --log-validation-ppl-to-tensorboard \
         --tensor-model-parallel-size ${TP} \
         --pipeline-model-parallel-size ${PP} \
+        --pipeline-model-parallel-layout 'Et*24|t*25|t*25|t*22,mL' \
         --context-parallel-size ${CP} \
         --no-load-optim \
         --no-load-rng \

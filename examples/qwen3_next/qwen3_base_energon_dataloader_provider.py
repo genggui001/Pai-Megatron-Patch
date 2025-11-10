@@ -32,7 +32,8 @@ def build_to_nex_input(max_seq_length, input_pad_token_id, pos_pad_token_id, lab
         
         return {
             "tokens": F.pad(features["input_ids"], (0, max_seq_length - sequence_length), "constant", input_pad_token_id),
-            "position_ids": F.pad(features["position_ids"], (0, max_seq_length - sequence_length), "constant", pos_pad_token_id),
+            # "position_ids": F.pad(features["position_ids"], (0, max_seq_length - sequence_length), "constant", pos_pad_token_id),
+            "position_ids": torch.cat([features["position_ids"], torch.arange(0, max_seq_length-sequence_length, dtype=torch.long)[None, :]], dim=-1),
             "labels": F.pad(features["labels"], (0, max_seq_length - sequence_length), "constant", label_pad_token_id),
             "loss_mask": F.pad(features["loss_mask"], (0, max_seq_length - sequence_length), "constant", 0.0),
         }
@@ -130,8 +131,8 @@ def train_valid_test_dataloaders_provider(train_val_test_num_samples):
             sensitive_words_path=None,
         ),
         batch_size=1,
-        packing_buffer_size=4096,
-        shuffle_buffer_size=4096,
+        packing_buffer_size=8192,
+        shuffle_buffer_size=8192,
         max_samples_per_sequence=None,
         worker_config=worker_config,
         handler=print_error_handler,
@@ -145,7 +146,7 @@ def train_valid_test_dataloaders_provider(train_val_test_num_samples):
             sensitive_words_path=None,
         ),
         batch_size=1,
-        packing_buffer_size=4096,
+        packing_buffer_size=8192,
         shuffle_buffer_size=None,
         max_samples_per_sequence=None,
         worker_config=worker_config,

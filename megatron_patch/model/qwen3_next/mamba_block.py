@@ -14,10 +14,11 @@ from typing import Optional, Union
 import torch
 from torch import Tensor, nn
 
+from megatron.core import tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.enums import Fp8Recipe
-from megatron.core.extensions.transformer_engine import TENorm
+from megatron.core.extensions.transformer_engine import TENorm, te_checkpoint
 from megatron.core.fp8_utils import get_fp8_context
 from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.packed_seq_params import PackedSeqParams
@@ -28,6 +29,7 @@ from megatron.core.tensor_parallel import get_cuda_rng_tracker
 from megatron.core.transformer import TransformerConfig
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.module import MegatronModule
+from megatron.core.transformer.enums import LayerType
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.transformer.utils import sharded_state_dict_default
@@ -213,17 +215,32 @@ class MambaStack(MegatronModule):
         )
 
     def _select_layers_for_pipeline_parallel(self, layer_type_list):
-        num_layers_per_pipeline_rank = self.config.num_layers // self.pp_group.size()
+        if self.config.pipeline_model_parallel_layout is not None:
+            offset = 0
+            for pp_rank in range(self.pp_group.rank()):
+                offset += self.config.pipeline_model_parallel_layout.get_num_layers_to_build(
+                    layer_type=LayerType.decoder, vp_stage=None, pp_rank=pp_rank
+                ) 
 
-        assert self.config.virtual_pipeline_model_parallel_size is None, (
-            "The Mamba hybrid model does not currently support "
-            "virtual/interleaved pipeline parallelism"
-        )
+            num_layers_per_pipeline_rank = self.config.pipeline_model_parallel_layout.get_num_layers_to_build(
+                layer_type=LayerType.decoder, vp_stage=None, pp_rank=self.pp_group.rank()
+            )
+            print((f"pp rank={self.pp_group.rank()}, Mamba layer_idxs = {offset} to {offset + num_layers_per_pipeline_rank}"))
+            selected_list = layer_type_list[offset : offset + num_layers_per_pipeline_rank]
+            return offset, selected_list
 
-        offset = self.pp_group.rank() * num_layers_per_pipeline_rank
-        selected_list = layer_type_list[offset : offset + num_layers_per_pipeline_rank]
+        else:
+            num_layers_per_pipeline_rank = self.config.num_layers // self.pp_group.size()
 
-        return offset, selected_list
+            assert self.config.virtual_pipeline_model_parallel_size is None, (
+                "The Mamba hybrid model does not currently support "
+                "virtual/interleaved pipeline parallelism"
+            )
+
+            offset = self.pp_group.rank() * num_layers_per_pipeline_rank
+            selected_list = layer_type_list[offset : offset + num_layers_per_pipeline_rank]
+
+            return offset, selected_list
 
     def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None):
         """
@@ -327,35 +344,45 @@ class MambaStack(MegatronModule):
         outer_fp8_context = get_fp8_context(self.config) if use_outer_fp8_context else nullcontext()
 
         with outer_fp8_context:
-            for layer in self.layers:
-                inner_fp8_context = (
-                    get_fp8_context(self.config, layer.layer_number - 1)
-                    if use_inner_fp8_context
-                    else nullcontext()
+            if self.config.recompute_granularity == 'full' and self.training:
+                hidden_states = self._checkpointed_forward(
+                    hidden_states=hidden_states,
+                    attention_mask=attention_mask,
+                    inference_context=inference_context,
+                    packed_seq_params=packed_seq_params,
+                    rotary_pos_emb=rotary_pos_emb,
+                    sequence_len_offset=sequence_len_offset,
                 )
-                with inner_fp8_context:
-                    if isinstance(layer, TransformerLayer):
-                        hidden_states, _ = layer(
-                            hidden_states=hidden_states,
-                            attention_mask=attention_mask,
-                            inference_context=inference_context,
-                            packed_seq_params=packed_seq_params,
-                            rotary_pos_emb=rotary_pos_emb,
-                            sequence_len_offset=sequence_len_offset,
-                        )
-                    else:  # MambaLayer
-                        hidden_states = layer(
-                            hidden_states=hidden_states,
-                            attention_mask=attention_mask,
-                            inference_context=inference_context,
-                            packed_seq_params=packed_seq_params,
-                        )
+            else:
+                for layer in self.layers:
+                    inner_fp8_context = (
+                        get_fp8_context(self.config, layer.layer_number - 1)
+                        if use_inner_fp8_context
+                        else nullcontext()
+                    )
+                    with inner_fp8_context:
+                        if isinstance(layer, TransformerLayer):
+                            hidden_states, _ = layer(
+                                hidden_states=hidden_states,
+                                attention_mask=attention_mask,
+                                inference_context=inference_context,
+                                packed_seq_params=packed_seq_params,
+                                rotary_pos_emb=rotary_pos_emb,
+                                sequence_len_offset=sequence_len_offset,
+                            )
+                        else:  # MambaLayer
+                            hidden_states = layer(
+                                hidden_states=hidden_states,
+                                attention_mask=attention_mask,
+                                inference_context=inference_context,
+                                packed_seq_params=packed_seq_params,
+                            )
 
-                # The attention layer (currently a simplified transformer layer)
-                # outputs a tuple of (hidden_states, context). Context is intended
-                # for cross-attention, and is not needed in our model.
-                if isinstance(hidden_states, tuple):
-                    hidden_states = hidden_states[0]
+                    # The attention layer (currently a simplified transformer layer)
+                    # outputs a tuple of (hidden_states, context). Context is intended
+                    # for cross-attention, and is not needed in our model.
+                    if isinstance(hidden_states, tuple):
+                        hidden_states = hidden_states[0]
 
         # Final layer norm.
         if self.post_process and self.post_layer_norm:
@@ -368,6 +395,100 @@ class MambaStack(MegatronModule):
         )
 
         return hidden_states
+
+
+    def _checkpointed_forward(
+        self,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        inference_context: Optional[BaseInferenceContext] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
+        rotary_pos_emb: Optional[Tensor] = None,
+        sequence_len_offset: Optional[Tensor] = None,
+    ):
+    
+        use_inner_fp8_context = self.config.fp8 and self.config.fp8_recipe != Fp8Recipe.delayed
+
+        """Forward method with activation checkpointing."""
+        def custom(start: int, end: int):
+            def custom_forward(
+                hidden_states, attention_mask, rotary_pos_emb
+            ):
+                for index in range(start, end):
+                    layer = self.layers[index]
+                    
+                    inner_fp8_context = (
+                        get_fp8_context(self.config, layer.layer_number - 1)
+                        if use_inner_fp8_context
+                        else nullcontext()
+                    )
+                    with inner_fp8_context:
+                        if isinstance(layer, TransformerLayer):
+                            hidden_states, _ = layer(
+                                hidden_states=hidden_states,
+                                attention_mask=attention_mask,
+                                inference_context=inference_context,
+                                packed_seq_params=packed_seq_params,
+                                rotary_pos_emb=rotary_pos_emb,
+                                sequence_len_offset=sequence_len_offset,
+                            )
+                        else:  # MambaLayer
+                            hidden_states = layer(
+                                hidden_states=hidden_states,
+                                attention_mask=attention_mask,
+                                inference_context=inference_context,
+                                packed_seq_params=packed_seq_params,
+                            )
+
+                    # The attention layer (currently a simplified transformer layer)
+                    # outputs a tuple of (hidden_states, context). Context is intended
+                    # for cross-attention, and is not needed in our model.
+                    if isinstance(hidden_states, tuple):
+                        hidden_states = hidden_states[0]
+
+                return hidden_states
+
+            return custom_forward
+
+        def checkpoint_handler(forward_func):
+            """Determines whether to use the `te_checkpoint` or `tensor_parallel.checkpoint`"""
+            # TODO: check if fp4 is supported in this case
+            if self.config.fp8:
+                return te_checkpoint(
+                    forward_func,
+                    self.config.distribute_saved_activations,
+                    tensor_parallel.random.get_cuda_rng_tracker,
+                    self.pg_collection.tp,
+                    hidden_states,
+                    attention_mask,
+                    rotary_pos_emb,
+                )
+            else:
+                return tensor_parallel.checkpoint(
+                    forward_func,
+                    self.config.distribute_saved_activations,
+                    hidden_states,
+                    attention_mask,
+                    rotary_pos_emb,
+                )
+
+        if self.config.recompute_method == 'uniform':
+            # Uniformly divide the total number of Transformer layers and checkpoint
+            # the input activation of each divided chunk.
+            # A method to further reduce memory usage reducing checkpoints.
+            layer_idx = 0
+            while layer_idx < self.num_layers_per_pipeline_rank:
+                hidden_states = checkpoint_handler(
+                    custom(layer_idx, layer_idx + self.config.recompute_num_layers)
+                )
+
+                layer_idx += self.config.recompute_num_layers
+
+        else:
+            raise ValueError("Invalid activation recompute method.")
+
+        return hidden_states        
+
 
     def sharded_state_dict(
         self,

@@ -4,6 +4,7 @@ from megatron.core.extensions.transformer_engine import (
     TEDotProductAttention,
     TELayerNormColumnParallelLinear,
     TERowParallelLinear,
+    TEColumnParallelLinear,
     TENorm
 )
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
@@ -13,11 +14,17 @@ from megatron.core.transformer.attention import SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.multi_token_prediction import (
+    MultiTokenPredictionBlockSubmodules,
+    get_mtp_layer_offset,
+    get_mtp_num_layers_to_build,
+)
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 
 from megatron_patch.model.qwen3_next.gated_attention import GatedSoftmaxAttention
 from megatron_patch.model.qwen3_next.mamba_block import MambaStack, MambaStackSubmodules
 from megatron_patch.model.qwen3_next.mamba_layer import MambaLayer, MambaLayerSubmodules
+from megatron_patch.model.qwen3_next.mamba_mtp import MultiTokenPredictionLayer, MultiTokenPredictionLayerSubmodules
 
 from megatron.core.models.backends import BackendSpecProvider, LocalSpecProvider
 from megatron.core.transformer.moe.moe_layer import MoELayer, MoESubmodules
@@ -87,6 +94,66 @@ def get_moe_module_spec_for_backend(
         module=MoELayer, submodules=MoESubmodules(experts=experts, shared_experts=shared_experts)
     )
     return moe_module_spec
+
+
+def get_qwen3_mtp_block_spec(args, config):
+    if args.mtp_num_layers is None:
+        return None
+
+    num_layers_to_build = get_mtp_num_layers_to_build(config, vp_stage=None, pp_rank=None)
+    if num_layers_to_build == 0:
+        return None
+
+    transformer_layer_spec = ModuleSpec(
+        module=TransformerLayer,
+        submodules=TransformerLayerSubmodules(
+            self_attention=ModuleSpec(
+                module=GatedSoftmaxAttention,
+                params={"attn_mask_type": AttnMaskType.causal},
+                submodules=SelfAttentionSubmodules(
+                    linear_qkv=TELayerNormColumnParallelLinear,
+                    core_attention=TEDotProductAttention,
+                    linear_proj=TERowParallelLinear,
+                    q_layernorm=TENorm,
+                    k_layernorm=TENorm
+                ),
+            ),
+            self_attn_bda=get_bias_dropout_add,
+            pre_mlp_layernorm=TENorm,
+            mlp=get_moe_module_spec(
+                num_experts=args.num_experts,
+                moe_grouped_gemm=args.moe_grouped_gemm,
+            ),
+            mlp_bda=get_bias_dropout_add,
+        ),
+    )
+
+    mtp_layer_spec = ModuleSpec(
+        module=MultiTokenPredictionLayer,
+        submodules=MultiTokenPredictionLayerSubmodules(
+            enorm=TENorm,
+            hnorm=TENorm,
+            eh_proj=TEColumnParallelLinear,
+            transformer_layer=transformer_layer_spec,
+            layer_norm=TENorm,
+        ),
+    )
+
+    mtp_num_layers = config.mtp_num_layers if config.mtp_num_layers else 0
+    mtp_layer_specs = [mtp_layer_spec] * mtp_num_layers
+
+    offset = get_mtp_layer_offset(config)
+    # split the mtp layer specs to only include the layers that are built in this pipeline stage.
+    mtp_layer_specs = mtp_layer_specs[offset : offset + num_layers_to_build]
+    if len(mtp_layer_specs) > 0:
+        assert (
+            len(mtp_layer_specs) == config.mtp_num_layers
+        ), +f"currently all of the mtp layers must stage in the same pipeline stage."
+        mtp_block_spec = MultiTokenPredictionBlockSubmodules(layer_specs=mtp_layer_specs)
+    else:
+        mtp_block_spec = None
+
+    return mtp_block_spec
 
 
 def get_qwen3_next_layer_spec(args):
