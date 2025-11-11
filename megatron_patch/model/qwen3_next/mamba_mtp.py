@@ -15,7 +15,9 @@ from megatron.core.tensor_parallel import (
     gather_from_tensor_model_parallel_region,
     scatter_to_sequence_parallel_region,
 )
-
+from megatron.core.transformer.multi_token_prediction import get_mtp_layer_offset
+from megatron.core.transformer.transformer_block import TransformerBlockSubmodules
+from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.enums import AttnMaskType
@@ -475,4 +477,211 @@ class MultiTokenPredictionLayer(MegatronModule):
             token prediction layer.
         """
         sharded_state_dict = super().sharded_state_dict(prefix, sharded_offsets, metadata)
+        return sharded_state_dict
+
+
+@dataclass
+class MultiTokenPredictionBlockSubmodules:
+    """
+    Dataclass for specifying the submodules of a multi token prediction block.
+
+    This class defines the structure for configuring the layers, allowing for
+    flexible and customizable architecture designs.
+
+    Args:
+        layer_specs (List[ModuleSpec], optional): A list of module specifications for
+            the layers within the multi token prediction block. Each specification typically
+            defines a complete multi token prediction layer (e.g., shared embedding,
+            projection matrix, transformer block, shared output head).
+    """
+
+    layer_specs: List[ModuleSpec] = None
+
+
+def _get_mtp_block_submodules(
+    config: TransformerConfig, spec: Union[MultiTokenPredictionBlockSubmodules, ModuleSpec]
+) -> MultiTokenPredictionBlockSubmodules:
+    """
+    Retrieve or construct MultiTokenPredictionBlockSubmodules based on the provided specification.
+
+    Args:
+        config (TransformerConfig): Configuration object for the transformer model.
+        spec (Union[MultiTokenPredictionBlockSubmodules, ModuleSpec]): Specification for the
+            multi token prediction block submodules.
+            Can be either a MultiTokenPredictionBlockSubmodules instance or a ModuleSpec.
+
+    Returns:
+        MultiTokenPredictionBlockSubmodules: The submodules for the multi token prediction block.
+    """
+
+    # Transformer block submodules.
+    if isinstance(spec, MultiTokenPredictionBlockSubmodules):
+        return spec
+    elif isinstance(spec, ModuleSpec):
+        if issubclass(spec.module, MultiTokenPredictionBlock):
+            return spec.submodules
+        else:
+            raise Exception(f"specialize for {spec.module.__name__}.")
+    else:
+        raise Exception(f"specialize for {type(spec).__name__}.")
+
+
+class MultiTokenPredictionBlock(MegatronModule):
+    """The implementation for Multi-Token Prediction (MTP) which extends
+    the prediction scope to multiple future tokens at each position.
+
+    This MTP implementation sequentially predict additional tokens and keep the complete
+    causal chain at each prediction depth, by using D sequential modules to predict
+    D additional tokens.
+
+    The k-th MTP module consists of a shared embedding layer, a projection matrix,
+    a Transformer block, and a shared output head.
+
+    For the i-th input token at the (k - 1)-th prediction depth, we first combine
+    the representation of the i-th token and the embedding of the (i + K)-th token with
+    the linear projection. The combined serves as the input of the Transformer block at
+    the k-th depth to produce the output representation.
+
+    for more information, please refer to DeepSeek-V3 Technical Report
+    https://github.com/deepseek-ai/DeepSeek-V3/blob/main/DeepSeek_V3.pdf
+    """
+
+    def __init__(
+        self,
+        config: TransformerConfig,
+        spec: Union[TransformerBlockSubmodules, ModuleSpec],
+        vp_stage: Optional[int] = None,
+        pg_collection: ProcessGroupCollection = None,
+    ):
+        super().__init__(config=config)
+        self.submodules = _get_mtp_block_submodules(config, spec)
+        self.mtp_loss_scaling_factor = config.mtp_loss_scaling_factor
+        self.vp_stage = vp_stage
+        self.mtp_steps = config.mtp_steps
+
+        # Initialize Context Parallelism (CP) support for MTP
+        # This enables MTP to work with CP > 1 by providing the CP process group
+        # to the roll_tensor function for proper boundary communication
+        if pg_collection is None:
+            # Use default MPU process groups if not provided
+            pg_collection = ProcessGroupCollection.use_mpu_process_groups(required_pgs=['cp'])
+        else:
+            # Ensure the provided process groups include CP
+            assert hasattr(
+                pg_collection, 'cp'
+            ), "MultiTokenPredictionBlock pg_collection must have cp process group"
+
+        self._build_layers(pg_collection)
+        assert len(self.layers) > 0, "MultiTokenPredictionBlock must have at least one layer."
+        self.cp_group = pg_collection.cp
+
+    def _build_layers(self, pg_collection):
+        def build_layer(layer_spec, layer_number):
+            return build_module(
+                layer_spec,
+                config=self.config,
+                layer_number=layer_number,
+                vp_stage=self.vp_stage,
+                pg_collection=pg_collection,
+            )
+
+        self.layers = torch.nn.ModuleList(
+            [
+                build_layer(layer_spec, i + 1)
+                for i, layer_spec in enumerate(self.submodules.layer_specs)
+            ]
+        )
+
+    def forward(
+        self,
+        input_ids: Tensor,
+        position_ids: Tensor,
+        hidden_states: Tensor,
+        attention_mask: Tensor,
+        context: Tensor = None,
+        context_mask: Tensor = None,
+        rotary_pos_emb: Tensor = None,
+        rotary_pos_cos: Tensor = None,
+        rotary_pos_sin: Tensor = None,
+        attention_bias: Tensor = None,
+        inference_params: InferenceParams = None,
+        packed_seq_params: PackedSeqParams = None,
+        sequence_len_offset: Tensor = None,
+        extra_block_kwargs: dict = None,
+        embedding=None,
+    ) -> Tensor:
+        """
+        Perform the forward pass through all of the MTP modules.
+
+        Args:
+            hidden_states (Tensor): Hidden states for input token with the shape [s, b, h]
+                where s is the sequence length, b is the batch size, and h is the hidden size.
+            attention_mask (Tensor): Boolean tensor of shape [1, 1, s, s] for masking
+                self-attention.
+
+        Returns:
+            (Tensor): The mtp loss tensor of shape [b, s].
+        """
+        # get hidden states from previous mtp stages
+        offset = get_mtp_layer_offset(self.config)
+        hidden_states_list = list(torch.chunk(hidden_states, 1 + offset, dim=0))
+        hidden_states = hidden_states_list[offset]
+
+        if self.mtp_steps is not None:
+            mtp_steps = self.mtp_steps
+        else:
+            mtp_steps = len(self.layers)
+
+        for mtp_step_idx in range(mtp_steps):
+            (hidden_states, input_ids, position_ids) = self.layers[mtp_step_idx % len(self.layers)](
+                input_ids=input_ids,
+                position_ids=position_ids,
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
+                inference_params=inference_params,
+                rotary_pos_emb=rotary_pos_emb,
+                rotary_pos_cos=rotary_pos_cos,
+                rotary_pos_sin=rotary_pos_sin,
+                packed_seq_params=packed_seq_params,
+                sequence_len_offset=sequence_len_offset,
+                embedding=embedding,
+                **(extra_block_kwargs or {}),
+            )
+
+            # append the output hidden states of the current mtp layer
+            # to the hidden_states_list
+            hidden_states_list.append(hidden_states)
+
+        # concat the hidden states of all mtp layers
+        hidden_states = torch.cat(hidden_states_list, dim=0)
+        return hidden_states
+
+    def sharded_state_dict(
+        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+    ) -> ShardedStateDict:
+        """
+        Generate a sharded state dictionary for the multi token prediction module.
+
+        Args:
+            prefix (str, optional): Prefix to be added to all keys in the state dict.
+            sharded_offsets (tuple, optional): Tuple of sharding offsets.
+            metadata (Optional[dict], optional): Additional metadata for sharding.
+
+        Returns:
+            ShardedStateDict: A dictionary containing the sharded state of the multi
+            token prediction module.
+        """
+        sharded_state_dict = super().sharded_state_dict(prefix, sharded_offsets, metadata)
+        layer_prefix = f'{prefix}layers.'
+        for layer in self.layers:
+            offset = get_mtp_layer_offset(self.config)
+            sharded_prefix = f'{layer_prefix}{layer.layer_number - 1 }.'
+
+            state_dict_prefix = f'{layer_prefix}{layer.layer_number - 1 - offset}.'
+            sharded_pp_offset = []
+            layer_sharded_state_dict = layer.sharded_state_dict(
+                state_dict_prefix, sharded_pp_offset, metadata
+            )
+            replace_prefix_for_sharding(layer_sharded_state_dict, state_dict_prefix, sharded_prefix)
+            sharded_state_dict.update(layer_sharded_state_dict)
         return sharded_state_dict

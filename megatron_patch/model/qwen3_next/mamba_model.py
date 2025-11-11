@@ -20,11 +20,11 @@ from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.multi_token_prediction import (
     MTPLossAutoScaler,
     MTPLossLoggingHelper,
-    MultiTokenPredictionBlock,
     roll_tensor,
     tie_output_layer_state_dict,
     tie_word_embeddings_state_dict,
 )
+from megatron_patch.model.qwen3_next.mamba_mtp import MultiTokenPredictionBlock
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.utils import WrappedTensor, deprecate_inference_params
 
@@ -144,6 +144,7 @@ class MambaModel(LanguageModule):
         )
 
         if self.mtp_process:
+            print(("self.config.mtp_steps", self.config.mtp_steps))
             self.mtp = MultiTokenPredictionBlock(
                 config=self.config, 
                 spec=self.mtp_block_spec,
@@ -285,16 +286,21 @@ class MambaModel(LanguageModule):
         # print("loss_mask", loss_mask)
 
         if self.mtp_process:
+            if self.config.mtp_steps is not None:
+                mtp_steps = self.config.mtp_steps
+            else:
+                mtp_steps = self.config.mtp_num_layers
+
             mtp_labels = labels.clone()
-            hidden_states_list = torch.chunk(hidden_states, 1 + self.config.mtp_num_layers, dim=0)
+            hidden_states_list = torch.chunk(hidden_states, 1 + mtp_steps, dim=0)
             hidden_states = hidden_states_list[0]
             if loss_mask is None:
                 # if loss_mask is not provided, use all ones as loss_mask
                 loss_mask = torch.ones_like(mtp_labels)
-            for mtp_layer_number in range(self.config.mtp_num_layers):
+            for mtp_step_idx in range(mtp_steps):
                 # output
                 mtp_logits, _ = self.output_layer(
-                    hidden_states_list[mtp_layer_number + 1],
+                    hidden_states_list[mtp_step_idx + 1],
                     weight=output_weight,
                     runtime_gather_output=runtime_gather_output,
                 )
@@ -316,13 +322,13 @@ class MambaModel(LanguageModule):
                     # after moving loss logging to loss_func in pretrain_gpt.py
                     MTPLossLoggingHelper.save_loss_to_tracker(
                         torch.sum(mtp_loss) / num_tokens,
-                        mtp_layer_number,
-                        self.config.mtp_num_layers,
+                        mtp_step_idx,
+                        mtp_steps,
                         avg_group=parallel_state.get_data_parallel_group(
                             with_context_parallel=True
                         ),
                     )
-                mtp_loss_scale = self.config.mtp_loss_scaling_factor / self.config.mtp_num_layers
+                mtp_loss_scale = self.config.mtp_loss_scaling_factor / mtp_steps
                 if self.config.calculate_per_token_loss:
                     hidden_states = MTPLossAutoScaler.apply(
                         hidden_states, mtp_loss_scale * mtp_loss

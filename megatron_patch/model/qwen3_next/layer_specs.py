@@ -15,7 +15,6 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.multi_token_prediction import (
-    MultiTokenPredictionBlockSubmodules,
     get_mtp_layer_offset,
     get_mtp_num_layers_to_build,
 )
@@ -25,7 +24,7 @@ from megatron_patch.model.qwen3_next.gated_attention import GatedSoftmaxAttentio
 from megatron_patch.model.qwen3_next.mamba_block import MambaStack, MambaStackSubmodules
 from megatron_patch.model.qwen3_next.mamba_layer import MambaLayer, MambaLayerSubmodules
 from megatron_patch.model.qwen3_next.mamba_mtp import MultiTokenPredictionLayer, MultiTokenPredictionLayerSubmodules
-
+from megatron_patch.model.qwen3_next.mamba_mtp import MultiTokenPredictionBlockSubmodules
 from megatron.core.models.backends import BackendSpecProvider, LocalSpecProvider
 from megatron.core.transformer.moe.moe_layer import MoELayer, MoESubmodules
 from megatron.core.transformer.moe.shared_experts import SharedExpertMLP

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
-from typing import List
+from typing import List, Optional
 from dataclasses import dataclass, field
 from megatron.core.transformer import TransformerConfig
 from transformers import AutoConfig
@@ -24,5 +24,7 @@ class Qwen3NextTransformerConfig(TransformerConfig):
     head_v_dim: int = 128
     num_k_heads: int = 16
     num_v_heads: int = 32
+
+    mtp_steps: Optional[int] = None
 
 

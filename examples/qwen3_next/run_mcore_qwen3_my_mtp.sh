@@ -332,6 +332,7 @@ megatron_options="  \
         --global-batch-size ${GLOBAL_BATCH_SIZE} \
         --num-layers ${NUM_LAYERS} \
         --mtp-num-layers 1 \
+        --mtp-steps 2 \
         --mtp-loss-scaling-factor 0.1 \
         --hidden-size ${HIDDEN_SIZE} \
         --num-attention-heads ${NUM_ATTENTION_HEADS} \
@@ -350,7 +351,7 @@ megatron_options="  \
         --log-validation-ppl-to-tensorboard \
         --tensor-model-parallel-size ${TP} \
         --pipeline-model-parallel-size ${PP} \
-        --pipeline-model-parallel-layout 'Et*24|t*25|t*25|t*22,mL' \
+        --pipeline-model-parallel-layout 'Et*25|t*26|t*26|t*19,mL' \
         --context-parallel-size ${CP} \
         --no-load-optim \
         --no-load-rng \

@@ -572,4 +572,11 @@ def get_patch_args(parser):
         help="Surround image tokens with tags.",
     )
 
+    group.add_argument(
+        "--mtp-steps",
+        type=int,
+        default=None,
+        help="Number of MTP steps.",
+    )
+
     return parser
