@@ -46,6 +46,23 @@ class MG2HFSynchronizer(_MG2HFSynchronizer):
         if mg_model.post_process:
             self.set_postprocess_state(mg_model=mg_model, hf_model=hf_model, is_mamba=True)
 
+            # mtp layer
+            self.set_moe_layer_state(mg_model.mtp.layers[0].transformer_layer.mlp, hf_model.mtp.layers[0].mlp)
+            self.copy(mg_model.mtp.layers[0].transformer_layer.pre_mlp_layernorm.weight, hf_model.mtp.layers[0].post_attention_layernorm.weight)
+            self.set_gated_selfattn_state(mg_model.mtp.layers[0].transformer_layer.self_attention, hf_model.mtp.layers[0].self_attn)
+            self.copy(mg_model.mtp.layers[0].transformer_layer.self_attention.linear_qgkv.layer_norm_weight, hf_model.mtp.layers[0].input_layernorm.weight)
+
+            self.copy(mg_model.mtp.layers[0].enorm.weight, hf_model.mtp.pre_fc_norm_embedding.weight)
+            self.copy(mg_model.mtp.layers[0].hnorm.weight,hf_model.mtp.pre_fc_norm_hidden.weight)
+            self.copy(mg_model.mtp.layers[0].final_layernorm.weight, hf_model.mtp.norm.weight)
+
+            self.copy(
+                mg_model.mtp.layers[0].eh_proj.weight,
+                hf_model.mtp.fc.weight,
+                param_type=ParamType.COLUMN
+            )
+
+
         for mg_layer_id, global_mg_layer_id in self._build_pipeline_parallel_mapping().items():
             hf_layer_id  = global_mg_layer_id // 2
             if (

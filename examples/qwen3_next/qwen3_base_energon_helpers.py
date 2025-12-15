@@ -267,6 +267,16 @@ class MyTaskEncoder(
 
     def encode_text_sft_iter(self, sample: SFTSample, is_reasoning: bool = False):
 
+        used_tools = []
+        for used_tool in sample.platform.get("tools", []):
+            if type(used_tool) == str:
+                used_tools.append(json.loads(used_tool))
+            elif type(used_tool) == dict:
+                used_tools.append(used_tool)
+            else:
+                raise ValueError(f"used_tool type error: {type(used_tool)}")
+
+
         system = sample.platform.get("content", "")
         if len(system) > 0:
             used_messages = [{
@@ -280,7 +290,15 @@ class MyTaskEncoder(
             # 非推理数据删除所有思考过程
             if not is_reasoning:
                 message['reasoning_content'] = None
-                
+
+            # 删除tool_call_id和tool_calls为空的情况
+            if "tool_call_id" in message and message["tool_call_id"] is None:
+                del message["tool_call_id"]
+            
+            if "tool_calls" in message:
+                if message["tool_calls"] is None or len(message["tool_calls"]) == 0:
+                    del message["tool_calls"]
+
             used_messages.append(message)
 
             if message['role'] != 'assistant':
@@ -289,7 +307,7 @@ class MyTaskEncoder(
             # 处理 input
             build_text = self.tokenizer.apply_chat_template(
                 used_messages,
-                tools=sample.platform.get("tools", []),
+                tools=used_tools,
                 tokenize=False,
             )
             

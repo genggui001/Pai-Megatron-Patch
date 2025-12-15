@@ -181,7 +181,7 @@ def train_valid_test_dataloaders_provider(train_val_test_num_samples):
             else:
                 print(f"dataset state {data_save_name} does not exist")
 
-    input_pad_token_id: int = 151669 # my <pad>
+    input_pad_token_id: int = 151643 # <|endoftext|>
     pos_pad_token_id: int = 0
     label_pad_token_id: int = -100
         
