@@ -177,10 +177,22 @@ class HF2MGSynchronizer(BaseSynchronizer):
         if self.dryrun:
             attn_proj_weight = attn.linear_qkv.weight
         else:
+            kv_repeat_count = int(os.environ.get('KV_REPEAT_COUNT', '1'))
+
+            tmp_k_proj_weight = self.load_tensor(hf_attn.k_proj.weight).reshape((num_query_groups // kv_repeat_count, 1, dim, -1))
+            tmp_v_proj_weight = self.load_tensor(hf_attn.v_proj.weight).reshape((num_query_groups // kv_repeat_count, 1, dim, -1))
+
+            print(tmp_k_proj_weight.shape, tmp_v_proj_weight.shape)
+
+            tmp_k_proj_weight = torch.cat([tmp_k_proj_weight] * kv_repeat_count, dim=1)
+            tmp_v_proj_weight = torch.cat([tmp_v_proj_weight] * kv_repeat_count, dim=1)
+
+            print(tmp_k_proj_weight.shape, tmp_v_proj_weight.shape)
+
             attn_proj_weight = torch.cat([
                 self.load_tensor(hf_attn.q_proj.weight).reshape((num_query_groups, num_querys_per_group*dim, -1)),
-                self.load_tensor(hf_attn.k_proj.weight).reshape((num_query_groups, dim, -1)),
-                self.load_tensor(hf_attn.v_proj.weight).reshape((num_query_groups, dim, -1)),
+                tmp_k_proj_weight.reshape((num_query_groups, dim, -1)),
+                tmp_v_proj_weight.reshape((num_query_groups, dim, -1)),
             ], dim=1)
         self.copy(
             attn_proj_weight, 

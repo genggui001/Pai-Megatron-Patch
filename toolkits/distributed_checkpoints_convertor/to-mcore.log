@@ -1,0 +1,1792 @@
+KV_REPEAT_COUNT: 2
+torchrun --nproc_per_node 8 --nnodes 1 --node_rank 0 --master_addr localhost --master_port 6000 impl/convert.py --normalization RMSNorm --swiglu --disable-bias-linear --seq-length 1 --max-position-embeddings 40960 --attention-backend auto --position-embedding-type rope --kv-channels 128 --qk-layernorm --group-query-attention --num-layers 48 --mtp-num-layers 1 --mtp-loss-scaling-factor 1.0 --hidden-size 2048 --ffn-hidden-size 6144 --moe-ffn-hidden-size 768 --num-attention-heads 32 --untie-embeddings-and-output-weights --moe-grouped-gemm --moe-router-score-function softmax --moe-token-dispatcher-type alltoall --moe-router-topk 8 --moe-layer-freq '([1]*48)' --num-experts 128 --num-query-groups 8 --micro-batch-size 1 --global-batch-size 1024 --train-iters 500000 --weight-decay 0.1 --adam-beta1 0.9 --adam-beta2 0.95 --init-method-std 0.006 --clip-grad 1.0 --bf16 --lr 6.0e-5 --lr-decay-style cosine --min-lr 6.0e-6 --lr-warmup-fraction .001 --lr-decay-iters 430000 --tensor-model-parallel-size 1 --pipeline-model-parallel-size 1 --expert-model-parallel-size 8 --log-interval 100 --save-interval 10000 --eval-interval 1000 --eval-iters 10 --model-type GPT --load-dir /mnt/nas/home/genggui/.cache/huggingface/hub/models--Qwen--Qwen3-30B-A3B-Thinking-2507/snapshots/144afc2f379b542fdd4e85a1fcd5e1f79112d95d --save-dir /mnt/nas/home/genggui/pretrain_weights/nlp/Qwen3-30B-A3B-Thinking-2507-to-mcore-mtp --padded-vocab-size 151936 --no-load-optim --no-load-rng --logging-level 1 --tokenizer-type HuggingFaceTokenizer --tokenizer-model /mnt/nas/home/genggui/.cache/huggingface/hub/models--Qwen--Qwen3-30B-A3B-Thinking-2507/snapshots/144afc2f379b542fdd4e85a1fcd5e1f79112d95d --use-gpu --bf16
+W1216 19:43:30.578000 1935134 site-packages/torch/distributed/run.py:792] 
+W1216 19:43:30.578000 1935134 site-packages/torch/distributed/run.py:792] *****************************************
+W1216 19:43:30.578000 1935134 site-packages/torch/distributed/run.py:792] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W1216 19:43:30.578000 1935134 site-packages/torch/distributed/run.py:792] *****************************************
+using world size: 8, data-parallel size: 8, context-parallel size: 1, hierarchical context-parallel sizes: None, tensor-model-parallel size: 1, encoder-tensor-model-parallel size: 0, pipeline-model-parallel size: 1, encoder-pipeline-model-parallel size: 0
+Number of virtual stages per pipeline stage: None
+accumulate and all-reduce gradients in fp32 for bfloat16 data type.
+using torch.bfloat16 for parameters ...
+------------------------ arguments ------------------------
+  account_for_embedding_in_pipeline_split ......... False
+  account_for_loss_in_pipeline_split .............. False
+  accumulate_allreduce_grads_in_fp32 .............. True
+  adam_beta1 ...................................... 0.9
+  adam_beta2 ...................................... 0.95
+  adam_eps ........................................ 1e-08
+  add_bias_linear ................................. False
+  add_position_embedding .......................... True
+  add_qkv_bias .................................... False
+  adlr_autoresume ................................. False
+  adlr_autoresume_interval ........................ 1000
+  align_grad_reduce ............................... True
+  align_param_gather .............................. False
+  app_tag_run_name ................................ None
+  app_tag_run_version ............................. 0.0.0
+  apply_layernorm_1p .............................. False
+  apply_query_key_layer_scaling ................... False
+  apply_residual_connection_post_layernorm ........ False
+  apply_rope_fusion ............................... True
+  async_save ...................................... None
+  async_tensor_model_parallel_allreduce ........... True
+  attention_backend ............................... AttnBackend.auto
+  attention_dropout ............................... 0.1
+  attention_softmax_in_fp32 ....................... False
+  auto_detect_ckpt_format ......................... False
+  auto_model ...................................... AutoModelForCausalLM
+  barrier_with_L1_time ............................ True
+  bert_binary_head ................................ True
+  bert_embedder_type .............................. megatron
+  bert_load ....................................... None
+  bf16 ............................................ True
+  bias_dropout_fusion ............................. True
+  bias_gelu_fusion ................................ False
+  bias_swiglu_fusion .............................. True
+  biencoder_projection_dim ........................ 0
+  biencoder_shared_query_context_model ............ False
+  block_data_path ................................. None
+  calc_ft_timeouts ................................ False
+  calculate_per_token_loss ........................ False
+  check_for_large_grads ........................... False
+  check_for_nan_in_loss_and_grad .................. True
+  check_for_spiky_loss ............................ False
+  check_weight_hash_across_dp_replicas_interval ... None
+  ckpt_assume_constant_structure .................. False
+  ckpt_convert_format ............................. None
+  ckpt_convert_save ............................... None
+  ckpt_convert_update_legacy_dist_opt_format ...... False
+  ckpt_format ..................................... torch_dist
+  ckpt_fully_parallel_load ........................ False
+  ckpt_fully_parallel_save ........................ True
+  ckpt_fully_parallel_save_deprecated ............. False
+  ckpt_step ....................................... None
+  classes_fraction ................................ 1.0
+  clip_grad ....................................... 1.0
+  clone_scatter_output_in_embedding ............... True
+  config_logger_dir ............................... 
+  consumed_train_samples .......................... 0
+  consumed_valid_samples .......................... 0
+  context_parallel_size ........................... 1
+  cp_comm_type .................................... ['p2p']
+  create_attention_mask_in_dataloader ............. True
+  cross_entropy_fusion_impl ....................... native
+  cross_entropy_loss_fusion ....................... False
+  cuda_graph_scope ................................ full
+  cuda_graph_warmup_steps ......................... 3
+  data_args_path .................................. None
+  data_cache_path ................................. None
+  data_parallel_random_init ....................... False
+  data_parallel_sharding_strategy ................. no_shard
+  data_parallel_size .............................. 8
+  data_path ....................................... None
+  data_per_class_fraction ......................... 1.0
+  data_sharding ................................... True
+  dataloader_type ................................. single
+  ddp_average_in_collective ....................... False
+  ddp_bucket_size ................................. None
+  ddp_num_buckets ................................. None
+  ddp_pad_buckets_for_high_nccl_busbw ............. False
+  debug ........................................... False
+  decoder_first_pipeline_num_layers ............... None
+  decoder_last_pipeline_num_layers ................ None
+  decoder_num_layers .............................. None
+  decoder_seq_length .............................. None
+  decoupled_lr .................................... None
+  decoupled_min_lr ................................ None
+  decrease_batch_size_if_needed ................... False
+  defer_embedding_wgrad_compute ................... False
+  delay_wgrad_compute ............................. False
+  deprecated_use_mcore_models ..................... False
+  deterministic_mode .............................. False
+  dino_bottleneck_size ............................ 256
+  dino_freeze_last_layer .......................... 1
+  dino_head_hidden_size ........................... 2048
+  dino_local_crops_number ......................... 10
+  dino_local_img_size ............................. 96
+  dino_norm_last_layer ............................ False
+  dino_teacher_temp ............................... 0.07
+  dino_warmup_teacher_temp ........................ 0.04
+  dino_warmup_teacher_temp_epochs ................. 30
+  disable_bf16_reduced_precision_matmul ........... False
+  disable_mamba_mem_eff_path ...................... False
+  disable_straggler_on_startup .................... False
+  dist_ckpt_format_deprecated ..................... None
+  dist_ckpt_strictness ............................ assume_ok_unexpected
+  distribute_saved_activations .................... False
+  distributed_backend ............................. nccl
+  distributed_timeout_minutes ..................... 10
+  dryrun .......................................... False
+  embedding_path .................................. None
+  empty_unused_memory_level ....................... 0
+  enable_cuda_graph ............................... False
+  enable_experimental ............................. False
+  enable_ft_package ............................... False
+  enable_gloo_process_groups ...................... True
+  enable_msc ...................................... True
+  enable_one_logger ............................... True
+  encoder_num_layers .............................. 48
+  encoder_pipeline_model_parallel_size ............ 0
+  encoder_seq_length .............................. 1
+  encoder_tensor_model_parallel_size .............. 0
+  end_weight_decay ................................ 0.1
+  eod_mask_loss ................................... False
+  error_injection_rate ............................ 0
+  error_injection_type ............................ transient_error
+  eval_interval ................................... 1000
+  eval_iters ...................................... 10
+  eval_loss_save .................................. None
+  evidence_data_path .............................. None
+  exit_duration_in_mins ........................... None
+  exit_interval ................................... None
+  exit_on_missing_checkpoint ...................... False
+  exit_signal_handler ............................. False
+  exp_avg_dtype ................................... torch.float32
+  exp_avg_sq_dtype ................................ torch.float32
+  expert_model_parallel_size ...................... 8
+  expert_tensor_parallel_size ..................... 1
+  external_cuda_graph ............................. False
+  ffn_hidden_size ................................. 6144
+  finetune ........................................ False
+  first_last_layers_bf16 .......................... False
+  flash_decode .................................... False
+  fp16 ............................................ False
+  fp16_lm_cross_entropy ........................... False
+  fp32_residual_connection ........................ False
+  fp8 ............................................. None
+  fp8_amax_compute_algo ........................... most_recent
+  fp8_amax_history_len ............................ 1
+  fp8_interval .................................... 1
+  fp8_margin ...................................... 0
+  fp8_param_gather ................................ False
+  fp8_recipe ...................................... delayed
+  fp8_wgrad ....................................... True
+  fsdp_double_buffer .............................. False
+  global_batch_size ............................... 1024
+  grad_reduce_in_bf16 ............................. False
+  gradient_accumulation_fusion .................... True
+  gradient_reduce_div_fusion ...................... True
+  group_query_attention ........................... True
+  head_lr_mult .................................... 1.0
+  heterogeneous_layers_config_encoded_json ........ None
+  heterogeneous_layers_config_path ................ None
+  hf_dir .......................................... None
+  hidden_dropout .................................. 0.1
+  hidden_size ..................................... 2048
+  hierarchical_context_parallel_sizes ............. None
+  high_priority_stream_groups ..................... []
+  hybrid_attention_ratio .......................... 0.0
+  hybrid_mlp_ratio ................................ 0.0
+  hybrid_override_pattern ......................... None
+  hysteresis ...................................... 2
+  ict_head_size ................................... None
+  ict_load ........................................ None
+  img_h ........................................... 224
+  img_w ........................................... 224
+  indexer_batch_size .............................. 128
+  indexer_log_interval ............................ 1000
+  inference_batch_times_seqlen_threshold .......... -1
+  inference_dynamic_batching ...................... False
+  inference_dynamic_batching_buffer_guaranteed_fraction  0.2
+  inference_dynamic_batching_buffer_overflow_factor  None
+  inference_dynamic_batching_buffer_size_gb ....... 40.0
+  inference_dynamic_batching_chunk_size ........... 256
+  inference_dynamic_batching_max_requests_override  None
+  inference_dynamic_batching_max_tokens_override .. None
+  inference_max_batch_size ........................ 8
+  inference_max_seq_length ........................ 2560
+  inference_rng_tracker ........................... False
+  init_method_std ................................. 0.006
+  init_method_xavier_uniform ...................... False
+  init_model_with_meta_device ..................... False
+  initial_loss_scale .............................. 4294967296
+  inprocess_active_world_size ..................... 8
+  inprocess_barrier_timeout ....................... 120
+  inprocess_completion_timeout .................... 120
+  inprocess_empty_cuda_cache ...................... False
+  inprocess_granularity ........................... node
+  inprocess_hard_timeout .......................... 90
+  inprocess_heartbeat_interval .................... 30
+  inprocess_heartbeat_timeout ..................... 60
+  inprocess_last_call_wait ........................ 1
+  inprocess_max_iterations ........................ None
+  inprocess_monitor_process_interval .............. 1.0
+  inprocess_monitor_thread_interval ............... 1.0
+  inprocess_progress_watchdog_interval ............ 1.0
+  inprocess_restart ............................... False
+  inprocess_soft_timeout .......................... 60
+  inprocess_termination_grace_time ................ 1
+  is_hybrid_model ................................. False
+  iter_per_epoch .................................. 1250
+  iterations_to_skip .............................. []
+  keep_fp8_transpose_cache_when_using_custom_fsdp . False
+  keep_last_n_checkpoints ......................... None
+  kv_channels ..................................... 128
+  kv_lora_rank .................................... 32
+  lazy_mpu_init ................................... None
+  load ............................................ None
+  load_dir ........................................ /mnt/nas/home/genggui/.cache/huggingface/hub/models--Qwen--Qwen3-30B-A3B-Thinking-2507/snapshots/144afc2f379b542fdd4e85a1fcd5e1f79112d95d
+  load_model_opt_format ........................... False
+  local_rank ...................................... 0
+  log_energy ...................................... False
+  log_interval .................................... 100
+  log_loss_scale_to_tensorboard ................... True
+  log_memory_to_tensorboard ....................... False
+  log_num_zeros_in_grad ........................... False
+  log_params_norm ................................. False
+  log_progress .................................... False
+  log_straggler ................................... False
+  log_throughput .................................. False
+  log_timers_to_tensorboard ....................... False
+  log_validation_ppl_to_tensorboard ............... False
+  log_world_size_to_tensorboard ................... False
+  logging_level ................................... 1
+  loss_scale ...................................... None
+  loss_scale_window ............................... 1000
+  lr .............................................. 6e-05
+  lr_decay_iters .................................. 430000
+  lr_decay_samples ................................ None
+  lr_decay_style .................................. cosine
+  lr_warmup_fraction .............................. 0.001
+  lr_warmup_init .................................. 0.0
+  lr_warmup_iters ................................. 0
+  lr_warmup_samples ............................... 0
+  lr_wsd_decay_iters .............................. None
+  lr_wsd_decay_samples ............................ None
+  lr_wsd_decay_style .............................. exponential
+  main_grads_dtype ................................ torch.float32
+  main_params_dtype ............................... torch.float32
+  make_vocab_size_divisible_by .................... 128
+  mamba_head_dim .................................. 64
+  mamba_num_groups ................................ 8
+  mamba_num_heads ................................. None
+  mamba_state_dim ................................. 128
+  manual_gc ....................................... False
+  manual_gc_eval .................................. True
+  manual_gc_interval .............................. 0
+  mask_factor ..................................... 1.0
+  mask_prob ....................................... 0.15
+  mask_type ....................................... random
+  masked_softmax_fusion ........................... True
+  max_position_embeddings ......................... 40960
+  max_shard_size .................................. 4GB
+  max_tokens_to_oom ............................... 12000
+  mcore2hf ........................................ False
+  memory_snapshot_path ............................ snapshot.pickle
+  merge_file ...................................... None
+  micro_batch_size ................................ 1
+  microbatch_group_size_per_vp_stage .............. None
+  mid_level_dataset_surplus ....................... 0.005
+  min_loss_scale .................................. 1.0
+  min_lr .......................................... 6e-06
+  mlp_chunks_for_prefill .......................... 1
+  mmap_bin_files .................................. True
+  mock_data ....................................... False
+  model_type ...................................... GPT
+  moe_apply_probs_on_input ........................ False
+  moe_aux_loss_coeff .............................. 0.0
+  moe_deepep_num_sms .............................. 20
+  moe_enable_deepep ............................... False
+  moe_expert_capacity_factor ...................... None
+  moe_extended_tp ................................. False
+  moe_ffn_hidden_size ............................. 768
+  moe_grouped_gemm ................................ True
+  moe_input_jitter_eps ............................ None
+  moe_layer_freq .................................. [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  moe_layer_recompute ............................. False
+  moe_pad_expert_input_to_capacity ................ False
+  moe_per_layer_logging ........................... False
+  moe_permute_fusion .............................. False
+  moe_router_bias_update_rate ..................... 0.001
+  moe_router_dtype ................................ None
+  moe_router_enable_expert_bias ................... False
+  moe_router_force_load_balancing ................. False
+  moe_router_group_topk ........................... None
+  moe_router_load_balancing_type .................. aux_loss
+  moe_router_num_groups ........................... None
+  moe_router_padding_for_fp8 ...................... False
+  moe_router_pre_softmax .......................... False
+  moe_router_score_function ....................... softmax
+  moe_router_topk ................................. 8
+  moe_router_topk_scaling_factor .................. None
+  moe_shared_expert_intermediate_size ............. None
+  moe_shared_expert_overlap ....................... False
+  moe_token_dispatcher_type ....................... alltoall
+  moe_token_drop_policy ........................... probs
+  moe_upcycling_granularity ....................... 1
+  moe_use_legacy_grouped_gemm ..................... False
+  moe_use_upcycling ............................... False
+  moe_z_loss_coeff ................................ None
+  mrope_section ................................... None
+  mscale .......................................... 1.0
+  mscale_all_dim .................................. 1.0
+  mtp_loss_scaling_factor ......................... 1.0
+  mtp_num_layers .................................. 1
+  multi_latent_attention .......................... False
+  nccl_all_reduce_for_prefill ..................... False
+  nccl_communicator_config_path ................... None
+  nccl_ub ......................................... False
+  no_load_optim ................................... True
+  no_load_rng ..................................... True
+  no_persist_layer_norm ........................... False
+  no_rope_freq .................................... None
+  no_save_optim ................................... None
+  no_save_rng ..................................... None
+  non_persistent_ckpt_type ........................ None
+  non_persistent_global_ckpt_dir .................. None
+  non_persistent_local_ckpt_algo .................. fully_parallel
+  non_persistent_local_ckpt_dir ................... None
+  non_persistent_save_interval .................... None
+  norm_epsilon .................................... 1e-05
+  normalization ................................... RMSNorm
+  num_attention_heads ............................. 32
+  num_channels .................................... 3
+  num_classes ..................................... 1000
+  num_dataset_builder_threads ..................... 1
+  num_distributed_optimizer_instances ............. 1
+  num_experts ..................................... 128
+  num_hf_saver .................................... None
+  num_layers ...................................... 48
+  num_layers_at_end_in_bf16 ....................... 1
+  num_layers_at_start_in_bf16 ..................... 1
+  num_layers_per_virtual_pipeline_stage ........... None
+  num_query_groups ................................ 8
+  num_virtual_stages_per_pipeline_rank ............ None
+  num_workers ..................................... 2
+  object_storage_cache_path ....................... None
+  one_logger_async ................................ False
+  one_logger_project .............................. megatron-lm
+  one_logger_run_name ............................. None
+  onnx_safe ....................................... None
+  openai_gelu ..................................... False
+  optimizer ....................................... adam
+  optimizer_cpu_offload ........................... False
+  optimizer_offload_fraction ...................... 1.0
+  output_bert_embeddings .......................... False
+  overlap_cpu_optimizer_d2h_h2d ................... False
+  overlap_grad_reduce ............................. False
+  overlap_p2p_comm ................................ False
+  overlap_p2p_comm_warmup_flush ................... False
+  overlap_param_gather ............................ False
+  overlap_param_gather_with_optimizer_step ........ False
+  override_opt_param_scheduler .................... False
+  padded_vocab_size ............................... 151936
+  params_dtype .................................... torch.bfloat16
+  patch_dim ....................................... 16
+  per_split_data_args_path ........................ None
+  perform_initialization .......................... True
+  pin_cpu_grads ................................... True
+  pin_cpu_params .................................. True
+  pipeline_model_parallel_comm_backend ............ None
+  pipeline_model_parallel_layout .................. None
+  pipeline_model_parallel_size .................... 1
+  pipeline_model_parallel_split_rank .............. None
+  position_embedding_type ......................... rope
+  pretrain_script ................................. None
+  pretrained_checkpoint ........................... None
+  profile ......................................... False
+  profile_ranks ................................... [0]
+  profile_step_end ................................ 12
+  profile_step_start .............................. 10
+  q_lora_rank ..................................... None
+  qk_head_dim ..................................... 128
+  qk_l2_norm ...................................... False
+  qk_layernorm .................................... True
+  qk_pos_emb_head_dim ............................. 64
+  query_in_block_prob ............................. 0.1
+  rampup_batch_size ............................... None
+  rank ............................................ 0
+  recompute_granularity ........................... None
+  recompute_method ................................ None
+  recompute_modules ............................... None
+  recompute_num_layers ............................ None
+  record_memory_history ........................... False
+  relative_attention_max_distance ................. 128
+  relative_attention_num_buckets .................. 32
+  replication ..................................... False
+  replication_factor .............................. 2
+  replication_jump ................................ None
+  rerun_mode ...................................... disabled
+  reset_attention_mask ............................ False
+  reset_position_ids .............................. False
+  result_rejected_tracker_filename ................ None
+  retriever_report_topk_accuracies ................ []
+  retriever_score_scaling ......................... False
+  retriever_seq_length ............................ 256
+  retro_add_retriever ............................. False
+  retro_attention_gate ............................ 1
+  retro_cyclic_train_iters ........................ None
+  retro_encoder_attention_dropout ................. 0.1
+  retro_encoder_hidden_dropout .................... 0.1
+  retro_encoder_layers ............................ 2
+  retro_num_neighbors ............................. 2
+  retro_num_retrieved_chunks ...................... 2
+  retro_project_dir ............................... None
+  retro_verify_neighbor_count ..................... True
+  reuse_grad_buf_for_mxfp8_param_ag ............... False
+  rope_scaling_factor ............................. 8.0
+  rotary_base ..................................... 10000
+  rotary_interleaved .............................. False
+  rotary_percent .................................. 1.0
+  rotary_scaling_factor ........................... 1.0
+  rotary_seq_len_interpolation_factor ............. None
+  run_workload_inspector_server ................... False
+  sample_rate ..................................... 1.0
+  save ............................................ None
+  save_dir ........................................ /mnt/nas/home/genggui/pretrain_weights/nlp/Qwen3-30B-A3B-Thinking-2507-to-mcore-mtp
+  save_interval ................................... 10000
+  scatter_gather_tensors_in_pipeline .............. True
+  seed ............................................ 1234
+  seq_length ...................................... 1
+  sequence_parallel ............................... False
+  sft ............................................. False
+  sft_tokenizer_prompt_format ..................... nemotron-h-aligned
+  sgd_momentum .................................... 0.9
+  short_seq_prob .................................. 0.1
+  skip_train ...................................... False
+  skipped_train_samples ........................... 0
+  spec ............................................ None
+  split ........................................... None
+  squared_relu .................................... False
+  start_weight_decay .............................. 0.1
+  straggler_ctrlr_port ............................ 65535
+  straggler_minmax_count .......................... 1
+  suggested_communication_unit_size ............... None
+  swiglu .......................................... True
+  swin_backbone_type .............................. tiny
+  symmetric_ar_type ............................... None
+  synchronizer .................................... general
+  target_ckpt_format .............................. torch_dist
+  te_rng_tracker .................................. False
+  tensor_model_parallel_size ...................... 1
+  tensorboard_dir ................................. None
+  tensorboard_log_interval ........................ 1
+  tensorboard_queue_size .......................... 1000
+  test_data_path .................................. None
+  test_mode ....................................... False
+  tiktoken_num_special_tokens ..................... 1000
+  tiktoken_pattern ................................ None
+  tiktoken_special_tokens ......................... None
+  timing_log_level ................................ 0
+  timing_log_option ............................... minmax
+  titles_data_path ................................ None
+  tokenizer_model ................................. /mnt/nas/home/genggui/.cache/huggingface/hub/models--Qwen--Qwen3-30B-A3B-Thinking-2507/snapshots/144afc2f379b542fdd4e85a1fcd5e1f79112d95d
+  tokenizer_type .................................. HuggingFaceTokenizer
+  torch_fsdp2_reshard_after_forward ............... True
+  tp_comm_bootstrap_backend ....................... nccl
+  tp_comm_bulk_dgrad .............................. True
+  tp_comm_bulk_wgrad .............................. True
+  tp_comm_overlap ................................. False
+  tp_comm_overlap_ag .............................. True
+  tp_comm_overlap_cfg ............................. None
+  tp_comm_overlap_rs .............................. True
+  tp_comm_overlap_rs_dgrad ........................ False
+  tp_comm_split_ag ................................ True
+  tp_comm_split_rs ................................ True
+  train_data_path ................................. None
+  train_iters ..................................... 500000
+  train_samples ................................... None
+  train_sync_interval ............................. None
+  transformer_impl ................................ transformer_engine
+  transformer_pipeline_model_parallel_size ........ 1
+  untie_embeddings_and_output_weights ............. True
+  use_checkpoint_args ............................. False
+  use_checkpoint_opt_param_scheduler .............. False
+  use_cpu_initialization .......................... None
+  use_custom_fsdp ................................. False
+  use_dist_ckpt ................................... True
+  use_dist_ckpt_deprecated ........................ False
+  use_distributed_optimizer ....................... False
+  use_flash_attn .................................. False
+  use_gpu ......................................... True
+  use_legacy_models ............................... False
+  use_mp_args_from_checkpoint_args ................ False
+  use_one_sent_docs ............................... False
+  use_persistent_ckpt_worker ...................... False
+  use_precision_aware_optimizer ................... False
+  use_pytorch_profiler ............................ False
+  use_ring_exchange_p2p ........................... False
+  use_rope_scaling ................................ False
+  use_rotary_position_embeddings .................. False
+  use_sharp ....................................... False
+  use_tokenizer_model_from_checkpoint_args ........ True
+  use_torch_fsdp2 ................................. False
+  use_torch_optimizer_for_cpu_offload ............. False
+  use_tp_pp_dp_mapping ............................ False
+  v_head_dim ...................................... 128
+  valid_data_path ................................. None
+  variable_seq_lengths ............................ False
+  virtual_pipeline_model_parallel_size ............ None
+  vision_backbone_type ............................ vit
+  vision_pretraining .............................. False
+  vision_pretraining_type ......................... classify
+  vocab_extra_ids ................................. 0
+  vocab_file ...................................... None
+  vocab_size ...................................... None
+  wandb_exp_name .................................. 
+  wandb_project ................................... 
+  wandb_save_dir .................................. 
+  weight_decay .................................... 0.1
+  weight_decay_incr_style ......................... constant
+  wgrad_deferral_limit ............................ 0
+  world_size ...................................... 8
+  yaml_cfg ........................................ None
+-------------------- end of arguments ---------------------
+INFO:megatron.core.num_microbatches_calculator:setting number of microbatches to constant 128
+> building HuggingFaceTokenizer tokenizer ...
+WARNING: one_logger package is required to enable e2e metrics tracking. please go to https://confluence.nvidia.com/display/MLWFO/Package+Repositories for details to install it
+INFO:megatron.training.initialize:Setting logging level to 1
+INFO:megatron.training.initialize:Setting logging level to 1
+INFO:megatron.training.initialize:Setting logging level to 1
+INFO:megatron.training.initialize:Setting logging level to 1
+INFO:megatron.training.initialize:Setting logging level to 1
+INFO:megatron.training.initialize:Setting logging level to 1
+WARNING:megatron.core.rerun_state_machine:RerunStateMachine initialized in mode RerunMode.DISABLED
+> initializing torch distributed ...
+INFO:megatron.training.initialize:Setting logging level to 1
+INFO:megatron.training.initialize:Setting logging level to 1
+> initialized tensor model parallel with size 1
+> initialized pipeline model parallel with size 1
+> setting random seeds to 1234 ...
+[rank3]:[W1216 19:43:40.383137993 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 3]  using GPU 3 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+[rank2]:[W1216 19:43:40.395961959 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 2]  using GPU 2 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+[rank4]:[W1216 19:43:40.396048407 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 4]  using GPU 4 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+[rank6]:[W1216 19:43:40.396052163 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 6]  using GPU 6 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+[rank7]:[W1216 19:43:40.396185394 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 7]  using GPU 7 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+[rank5]:[W1216 19:43:40.396191891 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 5]  using GPU 5 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+[rank1]:[W1216 19:43:40.396247511 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 1]  using GPU 1 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+> compiling dataset index builder ...
+make: Entering directory '/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/datasets'
+make: Nothing to be done for 'default'.
+make: Leaving directory '/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/datasets'
+>>> done with dataset index builder. Compilation time: 0.028 seconds
+WARNING: constraints for invoking optimized fused softmax kernel are not met. We default back to unfused kernel invocations.
+> compiling and loading fused kernels ...
+[rank0]:[W1216 19:43:41.491530288 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 0]  using GPU 0 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+>>> done with compiling and loading fused kernels. Compilation time: 1.326 seconds
+WORLD_SIZE: 8, RANK: 2, LOCAL_RANK: 2
+WORLD_SIZE: 8, RANK: 7, LOCAL_RANK: 7WORLD_SIZE: 8, RANK: 6, LOCAL_RANK: 6WORLD_SIZE: 8, RANK: 4, LOCAL_RANK: 4
+
+
+WORLD_SIZE: 8, RANK: 3, LOCAL_RANK: 3
+WORLD_SIZE: 8, RANK: 1, LOCAL_RANK: 1WORLD_SIZE: 8, RANK: 5, LOCAL_RANK: 5
+
+WORLD_SIZE: 8, RANK: 0, LOCAL_RANK: 0
+building GPT model ...
+/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/transformer/transformer_config.py:1216: UserWarning: Using a large number of experts (e.g. >=32) without fp32 routing. Consider enabling moe_router_dtype for better numerical stability.
+  warnings.warn(
+/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/transformer/transformer_config.py:1216: UserWarning: Using a large number of experts (e.g. >=32) without fp32 routing. Consider enabling moe_router_dtype for better numerical stability.
+  warnings.warn(
+/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/transformer/transformer_config.py:1216: UserWarning: Using a large number of experts (e.g. >=32) without fp32 routing. Consider enabling moe_router_dtype for better numerical stability.
+  warnings.warn(
+/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/transformer/transformer_config.py:1216: UserWarning: Using a large number of experts (e.g. >=32) without fp32 routing. Consider enabling moe_router_dtype for better numerical stability.
+  warnings.warn(
+/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/transformer/transformer_config.py:1216: UserWarning: Using a large number of experts (e.g. >=32) without fp32 routing. Consider enabling moe_router_dtype for better numerical stability.
+  warnings.warn(
+/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/transformer/transformer_config.py:1216: UserWarning: Using a large number of experts (e.g. >=32) without fp32 routing. Consider enabling moe_router_dtype for better numerical stability.
+  warnings.warn(
+/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/transformer/transformer_config.py:1216: UserWarning: Using a large number of experts (e.g. >=32) without fp32 routing. Consider enabling moe_router_dtype for better numerical stability.
+  warnings.warn(
+/mnt/nas/home/genggui/code/Megatron-Next/Pai-Megatron-Patch/backends/megatron/Megatron-LM-250624/megatron/core/transformer/transformer_config.py:1216: UserWarning: Using a large number of experts (e.g. >=32) without fp32 routing. Consider enabling moe_router_dtype for better numerical stability.
+  warnings.warn(
+/mnt/nas/home/genggui/miniconda3/envs/megatron-next/lib/python3.12/site-packages/transformer_engine/pytorch/cpu_offload.py:695: DeprecationWarning: Offloading weights is deprecated. Using offload_weights=True does not have any effect.
+  warnings.warn(
+/mnt/nas/home/genggui/miniconda3/envs/megatron-next/lib/python3.12/site-packages/transformer_engine/pytorch/cpu_offload.py:695: DeprecationWarning: Offloading weights is deprecated. Using offload_weights=True does not have any effect.
+  warnings.warn(
+/mnt/nas/home/genggui/miniconda3/envs/megatron-next/lib/python3.12/site-packages/transformer_engine/pytorch/cpu_offload.py:695: DeprecationWarning: Offloading weights is deprecated. Using offload_weights=True does not have any effect.
+  warnings.warn(
+/mnt/nas/home/genggui/miniconda3/envs/megatron-next/lib/python3.12/site-packages/transformer_engine/pytorch/cpu_offload.py:695: DeprecationWarning: Offloading weights is deprecated. Using offload_weights=True does not have any effect.
+  warnings.warn(
+/mnt/nas/home/genggui/miniconda3/envs/megatron-next/lib/python3.12/site-packages/transformer_engine/pytorch/cpu_offload.py:695: DeprecationWarning: Offloading weights is deprecated. Using offload_weights=True does not have any effect.
+  warnings.warn(
+/mnt/nas/home/genggui/miniconda3/envs/megatron-next/lib/python3.12/site-packages/transformer_engine/pytorch/cpu_offload.py:695: DeprecationWarning: Offloading weights is deprecated. Using offload_weights=True does not have any effect.
+  warnings.warn(
+/mnt/nas/home/genggui/miniconda3/envs/megatron-next/lib/python3.12/site-packages/transformer_engine/pytorch/cpu_offload.py:695: DeprecationWarning: Offloading weights is deprecated. Using offload_weights=True does not have any effect.
+  warnings.warn(
+/mnt/nas/home/genggui/miniconda3/envs/megatron-next/lib/python3.12/site-packages/transformer_engine/pytorch/cpu_offload.py:695: DeprecationWarning: Offloading weights is deprecated. Using offload_weights=True does not have any effect.
+  warnings.warn(
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+INFO:root:Converting layer 0
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 1
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 2
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 3
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 4
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 5
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 6
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 7
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 8
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])torch.Size([4, 1, 128, 2048])
+ torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 9
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 10
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 11
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 12
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 13
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 14
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 15
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 16
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 17
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 18
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 19
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 20
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 21
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 22
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 23
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 24
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 25
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 26
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 27
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 28
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 29
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 30
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 31
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 32
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 33
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 34
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 35
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 36
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 37
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 38
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 39
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 40
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 41
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 42
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 43
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 44
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 45
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 46
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+INFO:root:Converting layer 47
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+torch.Size([4, 1, 128, 2048]) torch.Size([4, 1, 128, 2048])
+torch.Size([4, 2, 128, 2048]) torch.Size([4, 2, 128, 2048])
+saving checkpoint at iteration       1 to /mnt/nas/home/genggui/pretrain_weights/nlp/Qwen3-30B-A3B-Thinking-2507-to-mcore-mtp in torch_dist format
+DEBUG:megatron.training.checkpointing:rank: 2, takes 0.3921337127685547 to prepare state dict for ckpt 
+DEBUG:megatron.training.checkpointing:rank: 5, takes 0.38214564323425293 to prepare state dict for ckpt 
+DEBUG:megatron.training.checkpointing:rank: 3, takes 0.38115835189819336 to prepare state dict for ckpt 
+DEBUG:megatron.training.checkpointing:rank: 1, takes 0.3918032646179199 to prepare state dict for ckpt 
+DEBUG:megatron.training.checkpointing:rank: 4, takes 0.3804044723510742 to prepare state dict for ckpt 
+DEBUG:megatron.training.checkpointing:rank: 7, takes 0.39919567108154297 to prepare state dict for ckpt 
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.training.checkpointing:rank: 6, takes 0.3912532329559326 to prepare state dict for ckpt 
+DEBUG:megatron.training.checkpointing:rank: 0, takes 0.37383222579956055 to prepare state dict for ckpt 
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+WARNING:megatron.core.dist_checkpointing.validation:There is difference in the common state dict in different ranks. The differences are {1: ([], [], [(('args',), <class 'argparse.Namespace'>, <class 'argparse.Namespace'>)]), 2: ([], [], [(('args',), <class 'argparse.Namespace'>, <class 'argparse.Namespace'>)]), 3: ([], [], [(('args',), <class 'argparse.Namespace'>, <class 'argparse.Namespace'>)]), 4: ([], [], [(('args',), <class 'argparse.Namespace'>, <class 'argparse.Namespace'>)]), 5: ([], [], [(('args',), <class 'argparse.Namespace'>, <class 'argparse.Namespace'>)]), 6: ([], [], [(('args',), <class 'argparse.Namespace'>, <class 'argparse.Namespace'>)]), 7: ([], [], [(('args',), <class 'argparse.Namespace'>, <class 'argparse.Namespace'>)])}
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:Apply save parallelization
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:Apply save parallelization
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:Apply save parallelization
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:Apply save parallelization
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:Apply save parallelization
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:Apply save parallelization
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:Apply save parallelization
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:Apply save parallelization
+DEBUG:megatron.core.dist_checkpointing.exchange_utils:distribute_shards_to_ranks distribution: [(8021082112, 0), (8021082112, 1), (7745830912, 2), (7751073792, 3), (7751073792, 4), (7751073792, 5), (7745830912, 6), (7745749504, 7)]
+DEBUG:megatron.core.dist_checkpointing.exchange_utils:distribute_shards_to_ranks distribution: [(8021082112, 0), (8021082112, 1), (7745830912, 2), (7751073792, 3), (7751073792, 4), (7751073792, 5), (7745830912, 6), (7745749504, 7)]
+DEBUG:megatron.core.dist_checkpointing.exchange_utils:distribute_shards_to_ranks distribution: [(8021082112, 0), (8021082112, 1), (7745830912, 2), (7751073792, 3), (7751073792, 4), (7751073792, 5), (7745830912, 6), (7745749504, 7)]
+DEBUG:megatron.core.dist_checkpointing.exchange_utils:distribute_shards_to_ranks distribution: [(8021082112, 0), (8021082112, 1), (7745830912, 2), (7751073792, 3), (7751073792, 4), (7751073792, 5), (7745830912, 6), (7745749504, 7)]
+DEBUG:megatron.core.dist_checkpointing.exchange_utils:distribute_shards_to_ranks distribution: [(8021082112, 0), (8021082112, 1), (7745830912, 2), (7751073792, 3), (7751073792, 4), (7751073792, 5), (7745830912, 6), (7745749504, 7)]
+DEBUG:megatron.core.dist_checkpointing.exchange_utils:distribute_shards_to_ranks distribution: [(8021082112, 0), (8021082112, 1), (7745830912, 2), (7751073792, 3), (7751073792, 4), (7751073792, 5), (7745830912, 6), (7745749504, 7)]
+DEBUG:megatron.core.dist_checkpointing.exchange_utils:distribute_shards_to_ranks distribution: [(8021082112, 0), (8021082112, 1), (7745830912, 2), (7751073792, 3), (7751073792, 4), (7751073792, 5), (7745830912, 6), (7745749504, 7)]
+DEBUG:megatron.core.dist_checkpointing.exchange_utils:distribute_shards_to_ranks distribution: [(8021082112, 0), (8021082112, 1), (7745830912, 2), (7751073792, 3), (7751073792, 4), (7751073792, 5), (7745830912, 6), (7745749504, 7)]
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:parallel save sharding, time: 1.608630895614624
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:parallel save sharding, time: 1.612015962600708
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:parallel save sharding, time: 1.6122331619262695
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:parallel save sharding, time: 1.610011100769043
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:parallel save sharding, time: 1.6127750873565674
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:parallel save sharding, time: 1.6111018657684326
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:parallel save sharding, time: 1.6133971214294434
+DEBUG:megatron.core.dist_checkpointing.strategies.fully_parallel:parallel save sharding, time: 1.855593204498291
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 5, starting state dict save
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 2, starting state dict save
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 4, starting state dict save
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 7, starting state dict save
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 3, starting state dict save
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 6, starting state dict save
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 1, starting state dict save
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:verifying reuse of global metadata
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:loaded global metadata reuse verification: no loaded plans passed
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:verifying reuse of global metadata
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:loaded global metadata reuse verification: no loaded plans passed
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:verifying reuse of global metadata
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:loaded global metadata reuse verification: no loaded plans passed
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:verifying reuse of global metadata
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:loaded global metadata reuse verification: no loaded plans passed
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:verifying reuse of global metadata
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:loaded global metadata reuse verification: no loaded plans passed
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:verifying reuse of global metadata
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:loaded global metadata reuse verification: no loaded plans passed
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:verifying reuse of global metadata
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:loaded global metadata reuse verification: no loaded plans passed
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 0, starting state dict save
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:verifying reuse of global metadata
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:loaded global metadata reuse verification: no loaded plans passed
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 7, plan time: 0.5611920356750488
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 4, plan time: 0.5743145942687988
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 5, plan time: 0.5772049427032471
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 2, plan time: 0.5755894184112549
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 6, plan time: 0.5593736171722412
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 1, plan time: 0.5323879718780518
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 3, plan time: 0.5601913928985596
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:thread_count: 2, time: 1765885461.3593524
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:thread_count: 2, time: 1765885461.359352
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:thread_count: 2, time: 1765885461.3593547
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:thread_count: 2, time: 1765885461.3593526
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:thread_count: 2, time: 1765885461.359353
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:thread_count: 2, time: 1765885461.359375
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:thread_count: 2, time: 1765885461.3593814
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:bucket_prep, time: 0.002813577651977539
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:bucket_prep, time: 0.002829313278198242
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:bucket_prep, time: 0.0028579235076904297
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:bucket_prep, time: 0.0029921531677246094
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:bucket_prep, time: 0.0030481815338134766
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:bucket_prep, time: 0.003109455108642578
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:bucket_prep, time: 0.003126859664916992
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:rank: 0, plan time: 1.6850016117095947
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:thread_count: 2, time: 1765885463.0060616
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:bucket_prep, time: 0.0034813880920410156
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:D2H and push, time: 4.124393939971924
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885465.4870217 rank: 5, write(async) time: 4.1276702880859375
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:D2H and push, time: 4.125130891799927
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885465.487458 rank: 7, write(async) time: 4.128107786178589
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:D2H and push, time: 4.267326354980469
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885465.6298363 rank: 4, write(async) time: 4.270485162734985
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:D2H and push, time: 4.299328088760376
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885465.661988 rank: 2, write(async) time: 4.30263614654541
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:D2H and push, time: 4.3084776401519775
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885465.6708605 rank: 6, write(async) time: 4.311507225036621
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:D2H and push, time: 4.318363904953003
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885465.6807513 rank: 3, write(async) time: 4.321370840072632
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:D2H and push, time: 4.34481406211853
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885465.7074149 rank: 1, write(async) time: 4.348041296005249
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:D2H and push, time: 3.9851412773132324
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885466.9948661 rank: 0, write(async) time: 3.9888055324554443
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 7, takes 1.4543533325195312e-05 to finish D2H 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 5, takes 1.4066696166992188e-05 to finish D2H 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 7, takes 0.0188596248626709 to schedule async ckpt 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 5, takes 0.019040822982788086 to schedule async ckpt 
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collecting worker results...
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 started
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collecting worker results...
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 1, takes 1.5974044799804688e-05 to finish D2H 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 6, takes 1.71661376953125e-05 to finish D2H 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 4, takes 1.4781951904296875e-05 to finish D2H 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 1, takes 0.01874542236328125 to schedule async ckpt 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 6, takes 0.01935434341430664 to schedule async ckpt 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 4, takes 0.019308090209960938 to schedule async ckpt 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 3, takes 1.4543533325195312e-05 to finish D2H 
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 2, takes 1.5020370483398438e-05 to finish D2H 
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 started
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collecting worker results...
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 3, takes 0.01888251304626465 to schedule async ckpt 
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collecting worker results...
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collecting worker results...
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 2, takes 0.01908731460571289 to schedule async ckpt 
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 started
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collecting worker results...
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collecting worker results...
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 0, takes 1.430511474609375e-05 to finish D2H 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 0, takes 0.01964592933654785 to schedule async ckpt 
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 3, joining self.process
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 1, joining self.process
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 4, joining self.process
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 6, joining self.process
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 5, joining self.process
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 7, joining self.process
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 2, joining self.process
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:rank: 0, joining self.process
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collecting worker results...
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 started
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:multistorageclient.client:No metadata provider configured, auto-commit will not be enabled
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 consumed: 3884437504, before: 1083338752, after: 4967776256
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 consumed: 3875586048, before: 1075429376, after: 4951015424
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 consumed: 3882266624, before: 1083338752, after: 4965605376
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collected worker results successfully
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 consumed: 3876073472, before: 1075429376, after: 4951502848
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1765885500.803445, rank: 5, write(sync,parallel): 30.71967315673828
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:TemporalAsyncCaller: Async process join finished after 30.76s from forking
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collected worker results successfully
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1765885500.9571662, rank: 7, write(sync,parallel): 30.887988090515137
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:TemporalAsyncCaller: Async process join finished after 30.93s from forking
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 consumed: 3874656256, before: 1075281920, after: 4949938176
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 consumed: 3883200512, before: 1073680384, after: 4956880896
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 consumed: 3877543936, before: 1083072512, after: 4960616448
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 consumed: 3879571456, before: 1083072512, after: 4962643968
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 consumed: 3885174784, before: 1073680384, after: 4958855168
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 consumed: 3882340352, before: 1054846976, after: 4937187328
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 consumed: 3880235008, before: 1054846976, after: 4935081984
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 consumed: 3874648064, before: 1075281920, after: 4949929984
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collected worker results successfully
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collected worker results successfully
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collected worker results successfully
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collected worker results successfully
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1765885501.2183797, rank: 2, write(sync,parallel): 30.987103700637817
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1765885501.2230728, rank: 6, write(sync,parallel): 31.02895426750183
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1765885501.2242053, rank: 4, write(sync,parallel): 31.03086233139038
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1765885501.2315984, rank: 3, write(sync,parallel): 31.00645923614502
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:TemporalAsyncCaller: Async process join finished after 31.03s from forking
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 consumed: 4015886336, before: 1089789952, after: 5105676288
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:TemporalAsyncCaller: Async process join finished after 31.07s from forking
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:TemporalAsyncCaller: Async process join finished after 31.08s from forking
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:TemporalAsyncCaller: Async process join finished after 31.05s from forking
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 consumed: 4016418816, before: 1089794048, after: 5106212864
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:0 consumed: 4016381952, before: 1111998464, after: 5128380416
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1 consumed: 4018442240, before: 1111998464, after: 5130440704
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collected worker results successfully
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1765885501.4537897, rank: 1, write(sync,parallel): 31.269439697265625
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:TemporalAsyncCaller: Async process join finished after 31.31s from forking
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:FileSystemWriterAsync: collected worker results successfully
+DEBUG:megatron.core.dist_checkpointing.strategies.filesystem_async:1765885501.5549347, rank: 0, write(sync,parallel): 30.588464498519897
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:TemporalAsyncCaller: Async process join finished after 30.63s from forking
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885501.613814, 1, gather: 0.11565041542053223
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885501.6138556, 2, gather: 0.35039186477661133
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885501.614049, 4, gather: 0.34122323989868164
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885501.614052, 6, gather: 0.3469698429107666
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885501.6140304, 3, gather: 0.3371999263763428
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885501.6141763, 7, gather: 0.612933874130249
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885501.6141672, 5, gather: 0.7667593955993652
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885501.6816251, 0, gather: 0.08044600486755371
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:megatron.core.dist_checkpointing.strategies.state_dict_saver:1765885502.0095994, metadata_write: 0.32768845558166504
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:finalize took 0.4399s
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:finalize took 0.7766s
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:finalize took 0.7660s
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:finalize took 0.7718s
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:finalize took 1.0392s
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:finalize took 1.1922s
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:finalize took 0.7636s
+DEBUG:megatron.core.dist_checkpointing.strategies.async_utils:finalize took 0.5415s
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+DEBUG:multistorageclient.config:Searching MSC config file paths: ['/mnt/nas/home/genggui/.msc_config.yaml', '/mnt/nas/home/genggui/.msc_config.json', '/mnt/nas/home/genggui/.config/msc/config.yaml', '/mnt/nas/home/genggui/.config/msc/config.json', '/etc/xdg/msc/config.yaml', '/etc/xdg/msc/config.json', '/etc/msc_config.yaml', '/etc/msc_config.json']
+DEBUG:multistorageclient.config:No MSC config files found in any of the search locations.
+  successfully saved checkpoint from iteration       1 to /mnt/nas/home/genggui/pretrain_weights/nlp/Qwen3-30B-A3B-Thinking-2507-to-mcore-mtp [ t 1/1, p 1/1 ]
+DEBUG:megatron.training.checkpointing:rank: 0, takes 0.0015323162078857422 to finalize ckpt save 
+DEBUG:megatron.training.checkpointing:rank: 5, takes 0.00121307373046875 to finalize ckpt save 
+DEBUG:megatron.training.checkpointing:rank: 7, takes 0.0012350082397460938 to finalize ckpt save 
+DEBUG:megatron.training.checkpointing:rank: 4, takes 0.0013091564178466797 to finalize ckpt save 
+DEBUG:megatron.training.checkpointing:rank: 6, takes 0.0014195442199707031 to finalize ckpt save 
+DEBUG:megatron.training.checkpointing:rank: 2, takes 0.0013980865478515625 to finalize ckpt save 
+DEBUG:megatron.training.checkpointing:rank: 3, takes 0.001196146011352539 to finalize ckpt save 
+DEBUG:megatron.training.checkpointing:rank: 1, takes 0.0013422966003417969 to finalize ckpt save 
+Conversion finished in 83.02261638641357 seconds.
+[rank0]:[W1216 19:45:03.680484091 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank4]:[W1216 19:45:04.505604052 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank5]:[W1216 19:45:04.505604184 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank7]:[W1216 19:45:04.515932684 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank6]:[W1216 19:45:04.586388590 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank1]:[W1216 19:45:04.676961637 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank2]:[W1216 19:45:04.677162492 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank3]:[W1216 19:45:04.686997056 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
