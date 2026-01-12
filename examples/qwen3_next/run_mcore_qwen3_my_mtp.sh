@@ -308,6 +308,8 @@ SAVED_PRETRAIN_CHECKPOINT_PATH="${OUTPUT_BASEPATH}/checkpoint/${NAME}"
 mkdir -p ${SAVED_PRETRAIN_CHECKPOINT_PATH}
 SAVED_DATALOADER_CHECKPOINT_PATH="${OUTPUT_BASEPATH}/dataloader/${NAME}"
 mkdir -p ${SAVED_DATALOADER_CHECKPOINT_PATH}
+EVAL_LOSS_SAVE_PATH="${OUTPUT_BASEPATH}/eval_loss/${NAME}"
+mkdir -p ${EVAL_LOSS_SAVE_PATH}
 
 find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "*.json" -print0 | xargs -0 cp -t ${SAVED_PRETRAIN_CHECKPOINT_PATH}
 find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "merges.txt" -print0 | xargs -0 cp -t ${SAVED_PRETRAIN_CHECKPOINT_PATH}
@@ -315,6 +317,7 @@ find -L ${PRETRAIN_CHECKPOINT_PATH} -maxdepth 1 -type f -name "merges.txt" -prin
 megatron_options="  \
         --save ${SAVED_PRETRAIN_CHECKPOINT_PATH} \
         --dataloader-save ${SAVED_DATALOADER_CHECKPOINT_PATH} \
+        --eval-loss-save ${EVAL_LOSS_SAVE_PATH} \
         --lr ${LR} \
         --min-lr ${MIN_LR} \
         --lr-decay-style cosine \
@@ -345,13 +348,14 @@ megatron_options="  \
         --eval-interval ${SAVE_INTERVAL} \
         --eval-iters 64 \
         --save-interval ${SAVE_INTERVAL} \
+        --keep-last-n-checkpoints 3 \
         --tensorboard-queue-size 1 \
         --tensorboard-dir ${TENSORBOARD_DIR} \
         --log-timers-to-tensorboard \
         --log-validation-ppl-to-tensorboard \
         --tensor-model-parallel-size ${TP} \
         --pipeline-model-parallel-size ${PP} \
-        --pipeline-model-parallel-layout 'Et*25|t*26|t*26|t*19,mL' \
+        --pipeline-model-parallel-layout 'Et*34|t*34|t*28,mL' \
         --context-parallel-size ${CP} \
         --no-load-optim \
         --no-load-rng \

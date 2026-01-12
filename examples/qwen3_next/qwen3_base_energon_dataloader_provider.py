@@ -159,8 +159,8 @@ def train_valid_test_dataloaders_provider(train_val_test_num_samples):
         reset_after_epoch=True,
     )
 
-    train_dataloader = get_savable_loader(train_ds, worker_config=worker_config)
-    valid_dataloader = get_loader(val_ds, worker_config=worker_config)
+    train_dataloader = get_savable_loader(train_ds, worker_config=worker_config, watchdog_timeout_seconds=240)
+    valid_dataloader = get_loader(val_ds, worker_config=worker_config, watchdog_timeout_seconds=240)
 
     if args.load is not None:
         if getattr(args, "dataloader_save", None):
