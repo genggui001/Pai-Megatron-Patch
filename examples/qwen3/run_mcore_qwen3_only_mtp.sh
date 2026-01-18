@@ -454,7 +454,7 @@ megatron_options="  \
         --adam-beta1 0.9 \
         --adam-beta2 0.95 \
         --clip-grad 1.0 \
-        --init-method-std 0.008 \
+        --init-method-std 0.024 \
         --attention-dropout 0.0 \
         --hidden-dropout 0.0 \
         --lr-decay-iters ${LR_DECAY_ITERS} \

@@ -188,7 +188,7 @@ elif [ $MODEL_SIZE = 32B ]; then
         )
     fi
 elif [ $MODEL_SIZE = A3B ]; then
-    export KV_REPEAT_COUNT=2
+    export KV_REPEAT_COUNT=1
     echo "KV_REPEAT_COUNT: $KV_REPEAT_COUNT"
     
     GPT_MODEL_ARGS+=(
@@ -227,7 +227,7 @@ TRAINING_ARGS=(
     --weight-decay 0.1 
     --adam-beta1 0.9 
     --adam-beta2 0.95 
-    --init-method-std 0.006 
+    --init-method-std 0.024 
     --clip-grad 1.0 
     --bf16
     --lr 6.0e-5 

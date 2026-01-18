@@ -133,6 +133,22 @@ class HF2MGSynchronizer(BaseSynchronizer):
             param_type=ParamType.COLUMN
         )
 
+        # mtp layer
+        self.set_moe_layer_state(mg_model.mtp.layers[0].transformer_layer.mlp, hf_model.mtp.layers[0].mlp)
+        self.copy(hf_model.mtp.layers[0].post_attention_layernorm.weight, mg_model.mtp.layers[0].transformer_layer.pre_mlp_layernorm.weight)
+        self.set_selfattn_state(mg_model.mtp.layers[0].transformer_layer.self_attention, hf_model.mtp.layers[0].self_attn)
+        self.copy(hf_model.mtp.layers[0].input_layernorm.weight, mg_model.mtp.layers[0].transformer_layer.self_attention.linear_qkv.layer_norm_weight)
+
+        self.copy(hf_model.mtp.pre_fc_norm_embedding.weight, mg_model.mtp.layers[0].enorm.weight)
+        self.copy(hf_model.mtp.pre_fc_norm_hidden.weight, mg_model.mtp.layers[0].hnorm.weight)
+        self.copy(hf_model.mtp.norm.weight, mg_model.mtp.layers[0].final_layernorm.weight)
+
+        self.copy(
+            hf_model.mtp.fc.weight,
+            mg_model.mtp.layers[0].eh_proj.weight,
+            param_type=ParamType.COLUMN
+        )
+
     def set_mla_selfattn_state(self, attn, hf_attn):
         # NOTE: MLA qkv_bias always False
         if self.args.q_lora_rank is None:
