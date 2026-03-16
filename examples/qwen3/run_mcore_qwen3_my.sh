@@ -472,7 +472,7 @@ megatron_options="  \
         --log-interval 1 \
         --log-throughput \
         --eval-interval ${SAVE_INTERVAL} \
-        --eval-iters 32 \
+        --eval-iters 64 \
         --save-interval ${SAVE_INTERVAL} \
         --keep-last-n-checkpoints 3 \
         --tensorboard-queue-size 1 \

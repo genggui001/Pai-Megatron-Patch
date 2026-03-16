@@ -200,8 +200,8 @@ class HF2MGSynchronizer(_HF2MGSynchronizer):
 
             print(tmp_k_proj_weight.shape, tmp_v_proj_weight.shape)
 
-            tmp_k_proj_weight = torch.cat([tmp_k_proj_weight, tmp_k_proj_weight, tmp_k_proj_weight, tmp_k_proj_weight], dim=1)
-            tmp_v_proj_weight = torch.cat([tmp_v_proj_weight, tmp_v_proj_weight, tmp_v_proj_weight, tmp_v_proj_weight], dim=1)
+            # tmp_k_proj_weight = torch.cat([tmp_k_proj_weight, tmp_k_proj_weight, tmp_k_proj_weight, tmp_k_proj_weight], dim=1)
+            # tmp_v_proj_weight = torch.cat([tmp_v_proj_weight, tmp_v_proj_weight, tmp_v_proj_weight, tmp_v_proj_weight], dim=1)
             
             print(tmp_k_proj_weight.shape, tmp_v_proj_weight.shape)
 

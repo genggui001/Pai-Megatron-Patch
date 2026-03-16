@@ -236,13 +236,19 @@ class MyTaskEncoder(
         if isinstance(sample, SFTSample):
             input_modality = sample.platform.get("input_modality", None)
             if input_modality == 'text':
-                yield from self.encode_text_sft_iter(sample, is_reasoning=False)
+                yield from self.encode_text_sft_iter(sample, is_reasoning=False, only_use_last_message=False)
             elif input_modality == 'same_language_reasoning':
-                yield from self.encode_text_sft_iter(sample, is_reasoning=True)
+                yield from self.encode_text_sft_iter(sample, is_reasoning=True, only_use_last_message=False)
+            elif input_modality == 'same_language_reasoning_with_interleaved_thinking':
+                yield from self.encode_text_sft_iter(sample, is_reasoning=True, only_use_last_message=True)
             elif input_modality == 'english_reasoning':
                 # 特殊处理思考过程+英文指令
                 sample.platform['content'] = (sample.platform['content'] + self.english_reasoning_prompt).strip()
-                yield from self.encode_text_sft_iter(sample, is_reasoning=True)
+                yield from self.encode_text_sft_iter(sample, is_reasoning=True, only_use_last_message=False)
+            elif input_modality == 'english_reasoning_with_interleaved_thinking':
+                # 特殊处理思考过程+英文指令
+                sample.platform['content'] = (sample.platform['content'] + self.english_reasoning_prompt).strip()
+                yield from self.encode_text_sft_iter(sample, is_reasoning=True, only_use_last_message=True)
             else:
                 raise NotImplementedError('Sample format not supported')
         elif isinstance(sample, TextSample):
@@ -265,7 +271,7 @@ class MyTaskEncoder(
         return text, has_sensitive_word
             
 
-    def encode_text_sft_iter(self, sample: SFTSample, is_reasoning: bool = False):
+    def encode_text_sft_iter(self, sample: SFTSample, is_reasoning: bool = False, only_use_last_message: bool = False):
 
         used_tools = []
         for used_tool in sample.platform.get("tools", []):
@@ -286,7 +292,7 @@ class MyTaskEncoder(
         else:
             used_messages = []
             
-        for message in sample.messages:
+        for idx, message in enumerate(sample.messages):
             # 非推理数据删除所有思考过程
             if not is_reasoning:
                 message['reasoning_content'] = None
@@ -300,6 +306,9 @@ class MyTaskEncoder(
                     del message["tool_calls"]
 
             used_messages.append(message)
+
+            if only_use_last_message and idx != len(sample.messages) - 1:
+                continue
 
             if message['role'] != 'assistant':
                 continue

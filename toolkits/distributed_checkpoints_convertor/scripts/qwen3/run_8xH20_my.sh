@@ -193,8 +193,6 @@ elif [ $MODEL_SIZE = A3B ]; then
     
     GPT_MODEL_ARGS+=(
         --num-layers 48
-        --mtp-num-layers 1
-        --mtp-loss-scaling-factor 1.0
         --hidden-size 2048
         --ffn-hidden-size 6144
         --moe-ffn-hidden-size 768

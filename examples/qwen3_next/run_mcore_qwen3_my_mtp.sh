@@ -355,7 +355,7 @@ megatron_options="  \
         --log-validation-ppl-to-tensorboard \
         --tensor-model-parallel-size ${TP} \
         --pipeline-model-parallel-size ${PP} \
-        --pipeline-model-parallel-layout 'Et*34|t*34|t*28,mL' \
+        --pipeline-model-parallel-layout 'Et*51|t*45,mL' \
         --context-parallel-size ${CP} \
         --no-load-optim \
         --no-load-rng \
