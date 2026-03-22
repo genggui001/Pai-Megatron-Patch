@@ -314,6 +314,9 @@ class MyTaskEncoder(
                             
                         if type(tool_call['arguments']) == str:
                             tool_call['arguments'] = json.loads(tool_call['arguments'])
+                        
+                        if type(tool_call['arguments']) != dict:
+                            raise ValueError(f"tool_call arguments type error: {type(tool_call['arguments'])}")
                 except Exception as e:
                     print(f"load tool_calls arguments error, message_tool_calls: {message['tool_calls']}, error: {e}")
                     continue
