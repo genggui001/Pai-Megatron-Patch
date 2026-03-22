@@ -14,7 +14,7 @@ from typing import Optional, Union
 import torch
 from torch import Tensor, nn
 
-from megatron.core import tensor_parallel
+from megatron.core import tensor_parallel, mpu
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.enums import Fp8Recipe
@@ -32,7 +32,7 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.enums import LayerType
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_layer import TransformerLayer
-from megatron.core.transformer.utils import sharded_state_dict_default
+from megatron.core.transformer.utils import ensure_metadata_has_dp_cp_group, sharded_state_dict_default
 from megatron.core.utils import WrappedTensor, deprecate_inference_params, make_viewless_tensor
 
 
@@ -142,6 +142,8 @@ class MambaStack(MegatronModule):
         assert pg_collection is not None, "pg_collection must be provided for MambaStack"
 
         self.pp_group = pg_collection.pp
+        self.tp_group = pg_collection.tp
+        self.pg_collection = pg_collection
 
         # Required for pipeline parallel schedules
         self.input_tensor = None
@@ -512,6 +514,7 @@ class MambaStack(MegatronModule):
             dict: The sharded state dictionary for the current object.
         """
 
+        metadata = ensure_metadata_has_dp_cp_group(metadata)
         sharded_state_dict = {}
         layer_prefix = f'{prefix}layers.'
 
@@ -538,7 +541,7 @@ class MambaStack(MegatronModule):
             if not module is self.layers:
                 sharded_state_dict.update(
                     sharded_state_dict_default(
-                        module, f'{prefix}{name}.', sharded_offsets, metadata
+                        module, f'{prefix}{name}.', sharded_offsets, metadata, tp_group=self.tp_group
                     )
                 )
 

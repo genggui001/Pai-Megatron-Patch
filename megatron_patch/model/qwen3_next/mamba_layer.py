@@ -11,6 +11,7 @@ from typing import Dict, Optional, Union
 import torch
 from torch import Tensor
 
+from megatron.core import mpu
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import apply_prefix_mapping
 from megatron.core.inference.contexts import BaseInferenceContext

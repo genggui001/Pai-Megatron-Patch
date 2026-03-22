@@ -5,7 +5,7 @@ from typing import Literal, Optional, Dict
 import torch
 from torch import Tensor
 
-from megatron.core import tensor_parallel, parallel_state
+from megatron.core import tensor_parallel, parallel_state, mpu
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.inference.contexts import BaseInferenceContext
@@ -400,27 +400,21 @@ class MambaModel(LanguageModule):
             output_extra_state and output_extra_state.data
         ), f'Expected output layer extra state to be empty, got: {output_extra_state}'
 
-        # Multi-Token Prediction (MTP) need both embedding layer and output layer in
-        # mtp process stage.
+        # Multi-Token Prediction (MTP) need embedding layer in mtp process stage.
         # If MTP is not placed in the pre processing stage, we need to maintain a copy of
         # embedding layer in the mtp process stage and tie it to the embedding in the pre
         # processing stage.
-        # Also, if MTP is not placed in the post processing stage, we need to maintain a copy
-        # of output layer in the mtp process stage and tie it to the output layer in the post
-        # processing stage.
+        # Now MTP loss is computed in post processing stage, so the output_layer is not needed.
         if self.mtp_process and not self.pre_process:
             emb_weight_key = f'{prefix}embedding.word_embeddings.weight'
             emb_weight = self.embedding.word_embeddings.weight
-            tie_word_embeddings_state_dict(sharded_state_dict, emb_weight, emb_weight_key)
-        if self.mtp_process and not self.post_process:
-            # We only need to tie the output layer weight if share_embeddings_and_output_weights
-            # is False. Because if share_embeddings_and_output_weights is True, the shared weight
-            # will be stored in embedding layer, and output layer will not have any weight.
-            if not self.share_embeddings_and_output_weights:
-                output_layer_weight_key = f'{prefix}output_layer.weight'
-                output_layer_weight = self.output_layer.weight
-                tie_output_layer_state_dict(
-                    sharded_state_dict, output_layer_weight, output_layer_weight_key
-                )
+            tie_word_embeddings_state_dict(
+                sharded_state_dict,
+                emb_weight,
+                emb_weight_key,
+                tp_group=self.tp_group,
+                dp_cp_group=metadata['dp_cp_group'],
+            )
 
         return sharded_state_dict
+

@@ -241,15 +241,18 @@ class HF2MGSynchronizer(_HF2MGSynchronizer):
             hf_mixer.head_v_dim
         )
         split_size_list = [
-            Dk, 
-            Dk, 
-            Dv * Nv // Nk
+            Nk * Dk, 
+            Nk * Dk, 
+            Nv * Dv, 
         ]
         q, k, v = torch.split(
-            self.load_tensor(hf_mixer.in_proj_qkv.weight).reshape(Nk, 2 * Dk + Dv * Nv // Nk, -1),
+            self.load_tensor(hf_mixer.in_proj_qkv.weight),
             split_size_list,
-            dim=1
+            dim=0
         )
+        q = q.reshape(Nk, Dk, -1)
+        k = k.reshape(Nk, Dk, -1)
+        v = v.reshape(Nk, Dv * Nv // Nk, -1)
         z = self.load_tensor(hf_mixer.in_proj_z.weight).reshape(Nk, Dv * Nv // Nk, -1)
         # print((
         #     z.shape, v.shape, q.shape, k.shape, 

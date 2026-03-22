@@ -506,12 +506,12 @@ def get_patch_args(parser):
         help="Use activation checkpointing.",
     )
 
-    group.add_argument(
-        "--cpu-offloading-num-layers",
-        type=int,
-        default=0,
-        help="The num of layers to be moved to CPU",
-    )
+    # group.add_argument(
+    #     "--cpu-offloading-num-layers",
+    #     type=int,
+    #     default=0,
+    #     help="The num of layers to be moved to CPU",
+    # )
 
     group.add_argument('--dataset-config', type=str, default=None)
     group.add_argument("--prompt-path", type=str, default=None)

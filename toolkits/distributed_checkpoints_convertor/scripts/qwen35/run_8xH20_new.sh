@@ -3,7 +3,7 @@ set -xe
 CURRENT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 CONVERTOR_DIR=$( dirname $( dirname ${CURRENT_DIR}))
 MEGATRON_PATCH_PATH=$( dirname $( dirname ${CONVERTOR_DIR}))
-export PYTHONPATH=${MEGATRON_PATCH_PATH}:${MEGATRON_PATCH_PATH}/backends/megatron/Megatron-LM-250908:${CONVERTOR_DIR}/impl:$PYTHONPATH
+export PYTHONPATH=${MEGATRON_PATCH_PATH}:${MEGATRON_PATCH_PATH}/backends/megatron/Megatron-LM-260226:${CONVERTOR_DIR}/impl:$PYTHONPATH
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=true # for PyTorch >= 2.6
 
@@ -126,6 +126,7 @@ if [ $MODEL_SIZE = A10B ]; then
         --moe-router-topk 8
         --num-experts 256
         --num-query-groups 8
+        --moe-shared-expert-gate
         --moe-shared-expert-intermediate-size 1024 
     )
     if [ -z  "$MODEL_PARALLEL_ARGS" ]; then

@@ -76,17 +76,17 @@ elif [ $FL = false ]; then
     "
 fi
 
-if [ $MODEL_SIZE = A3B ]; then
-    HIDDEN_SIZE=2048
-    NUM_ATTENTION_HEADS=16
+if [ $MODEL_SIZE = A10B ]; then
+    HIDDEN_SIZE=3072
+    NUM_ATTENTION_HEADS=32
     NUM_LAYERS=96
-    INTERMEDIATE_SIZE=5120
-    MOE_INTERMEDIATE_SIZE=512
+    INTERMEDIATE_SIZE=7680
+    MOE_INTERMEDIATE_SIZE=1024
     MAX_POSITION_EMBEDDINGS=262144
     NUM_KEY_VALUE_HEADS=8
     ROPE_THETA=10000000
-    NUM_EXPERTS=512
-    ROUTER_TOPK=10
+    NUM_EXPERTS=256
+    ROUTER_TOPK=8
     RMS_NORM_EPS=1e-6
 
 
@@ -101,7 +101,7 @@ if [ $MODEL_SIZE = A3B ]; then
         --moe-router-load-balancing-type aux_loss \
         --moe-aux-loss-coeff 0.001 \
         --moe-shared-expert-gate \
-        --moe-shared-expert-intermediate-size 512 \
+        --moe-shared-expert-intermediate-size ${MOE_INTERMEDIATE_SIZE} \
         "
 
     tie_option=" \
@@ -120,7 +120,7 @@ if [ $MODEL_SIZE = A3B ]; then
                 --mamba-state-dim 128 \
                 --mamba-head-dim 128 \
                 --mamba-num-groups 16 \
-                --mamba-num-heads 32
+                --mamba-num-heads 64
     "
 fi
 
@@ -365,7 +365,7 @@ megatron_options="  \
         --no-load-optim \
         --no-load-rng \
         --num-workers 4 \
-        --padded-vocab-size 151936 \
+        --padded-vocab-size 248320 \
         --patch-tokenizer-type Qwen3Tokenizer \
         --swiglu \
         --normalization RMSNorm \

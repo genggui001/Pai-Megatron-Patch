@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from megatron.core import mpu
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.process_groups_config import ProcessGroupCollection
@@ -20,6 +21,7 @@ from megatron.core.transformer import TransformerConfig
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.utils import (
+    ensure_metadata_has_dp_cp_group,
     make_sharded_tensors_for_checkpoint,
     sharded_state_dict_default,
 )
@@ -383,8 +385,10 @@ class GatedDeltaNetMixer(MambaMixer):
         return out, out_bias
 
 
-    def sharded_state_dict(self, prefix="", sharded_offsets=(), metadata=None):
+    def sharded_state_dict(self, prefix="", sharded_offsets=(), metadata=None, tp_group=None):
         """Provide a sharded state dictionary for distributed checkpointing."""
+        metadata = ensure_metadata_has_dp_cp_group(metadata)
+        tp_group = tp_group if tp_group is not None else self.pg_collection.tp
         sharded_state_dict = {}
         # Parameters
         self._save_to_state_dict(sharded_state_dict, "", keep_vars=True)
@@ -397,19 +401,29 @@ class GatedDeltaNetMixer(MambaMixer):
                 "D": 0,
             },  # parameters sharded across TP
             sharded_offsets=sharded_offsets,
+            tp_group=tp_group,
+            dp_cp_group=metadata["dp_cp_group"],
         )
         # Submodules
         for name, module in self.named_children():
             if name == "conv1d":
                 # Add TP sharding for Conv1d
                 module_sd = module.state_dict(prefix="", keep_vars=True)
+                tp_sharding_map = {"weight": 0}
+                if self.conv1d.bias is not None:
+                    tp_sharding_map["bias"] = 0
                 module_sharded_sd = make_sharded_tensors_for_checkpoint(
-                    module_sd, f"{prefix}{name}.", {f"weight": 0, f"bias": 0}, sharded_offsets
+                    module_sd,
+                    f"{prefix}{name}.",
+                    tp_sharding_map,
+                    sharded_offsets,
+                    tp_group=tp_group,
+                    dp_cp_group=metadata["dp_cp_group"],
                 )
 
             else:
                 module_sharded_sd = sharded_state_dict_default(
-                    module, f"{prefix}{name}.", sharded_offsets, metadata
+                    module, f"{prefix}{name}.", sharded_offsets, metadata, tp_group=tp_group
                 )
 
             sharded_state_dict.update(module_sharded_sd)
