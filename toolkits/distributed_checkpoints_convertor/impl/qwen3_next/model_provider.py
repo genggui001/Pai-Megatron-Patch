@@ -34,10 +34,15 @@ from megatron_patch.model.qwen3_next.mamba_model import MambaModel
 from megatron_patch.model.qwen3_next.layer_specs import get_qwen3_next_layer_spec, get_qwen3_mtp_block_spec
 from megatron_patch.model.qwen3_next.transformer_config import Qwen3NextTransformerConfig
 
-def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None):
+def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, pg_collection=None):
     print_rank_0('building MAMBA model ...')
     if config is None:
         config = core_transformer_config_from_args(args, Qwen3NextTransformerConfig)
+        config.head_k_dim = args.mamba_state_dim
+        config.head_v_dim = args.mamba_head_dim
+        config.num_k_heads = args.mamba_num_groups
+        config.num_v_heads = args.mamba_num_heads
+
     assert args.use_legacy_models is False, "Mamba only supported in Mcore!"
 
     model = MambaModel(
