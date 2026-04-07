@@ -122,6 +122,52 @@ if [ $MODEL_SIZE = A10B ]; then
                 --mamba-num-groups 16 \
                 --mamba-num-heads 64
     "
+elif [ $MODEL_SIZE = A3B ]; then
+    HIDDEN_SIZE=2048
+    NUM_ATTENTION_HEADS=16
+    NUM_LAYERS=80
+    INTERMEDIATE_SIZE=5120
+    MOE_INTERMEDIATE_SIZE=512
+    MAX_POSITION_EMBEDDINGS=262144
+    NUM_KEY_VALUE_HEADS=8
+    ROPE_THETA=10000000
+    NUM_EXPERTS=256
+    ROUTER_TOPK=8
+    RMS_NORM_EPS=1e-6
+
+
+    moe_options=" \
+        --moe-grouped-gemm \
+        --moe-token-dispatcher-type alltoall \
+        --moe-router-topk ${ROUTER_TOPK} \
+        --num-experts ${NUM_EXPERTS} \
+        --expert-tensor-parallel-size ${ETP} \
+        --expert-model-parallel-size ${EP} \
+        --moe-ffn-hidden-size ${MOE_INTERMEDIATE_SIZE} \
+        --moe-router-load-balancing-type aux_loss \
+        --moe-aux-loss-coeff 0.001 \
+        --moe-shared-expert-gate \
+        --moe-shared-expert-intermediate-size ${MOE_INTERMEDIATE_SIZE} \
+        "
+
+    tie_option=" \
+            --untie-embeddings-and-output-weights \
+            "
+
+    gqa_options=" \
+                --group-query-attention \
+                --num-query-groups ${NUM_KEY_VALUE_HEADS}"
+    
+    hybrid_model_options=" \
+                --hybrid-attention-ratio 0.125 \
+                --hybrid-mlp-ratio 0.5 \
+                --hybrid-override-pattern M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*- \
+                --is-hybrid-model \
+                --mamba-state-dim 128 \
+                --mamba-head-dim 128 \
+                --mamba-num-groups 16 \
+                --mamba-num-heads 32
+    "
 fi
 
 

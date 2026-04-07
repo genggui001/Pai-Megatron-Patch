@@ -136,6 +136,42 @@ if [ $MODEL_SIZE = A10B ]; then
             --expert-model-parallel-size 8
         )
     fi
+elif [ $MODEL_SIZE = A3B ]; then
+    GPT_MODEL_ARGS+=(
+        --num-layers 80
+        --mtp-num-layers 1
+        --mtp-loss-scaling-factor 1.0
+        --hidden-size 2048
+        --ffn-hidden-size 5120
+        --moe-ffn-hidden-size 512
+        --num-attention-heads 16
+        --hybrid-attention-ratio 0.125 
+        --hybrid-mlp-ratio 0.5 
+        --hybrid-override-pattern M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*-M-M-M-*- 
+        --is-hybrid-model
+        --mamba-state-dim 128
+        --mamba-head-dim 128
+        --mamba-num-groups 16
+        --mamba-num-heads 32
+        --untie-embeddings-and-output-weights
+        --rotary-base 10000000
+        --rotary-percent 0.25
+        --moe-grouped-gemm
+        --moe-router-score-function softmax
+        --moe-token-dispatcher-type alltoall
+        --moe-router-topk 8
+        --num-experts 256
+        --num-query-groups 8
+        --moe-shared-expert-gate
+        --moe-shared-expert-intermediate-size 512 
+    )
+    if [ -z  "$MODEL_PARALLEL_ARGS" ]; then
+        MODEL_PARALLEL_ARGS=(
+            --tensor-model-parallel-size 1
+            --pipeline-model-parallel-size 1
+            --expert-model-parallel-size 8
+        )
+    fi
 fi
 
 TRAINING_ARGS=(
