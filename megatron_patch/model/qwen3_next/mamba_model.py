@@ -203,6 +203,7 @@ class MambaModel(LanguageModule):
         *,
         inference_params: Optional[BaseInferenceContext] = None,
         loss_mask: Optional[Tensor] = None,
+        return_raw_logits: bool = False,
     ) -> Tensor:
         """Forward function of the Mamba model. This function passes the input tensors
         through the embedding layer, and then the decoder and finally into the post
@@ -346,10 +347,15 @@ class MambaModel(LanguageModule):
         )
 
         if labels is None:
+            if return_raw_logits:
+                return logits
             # [s b h] => [b s h]
             return logits.transpose(0, 1).contiguous()
 
         loss = self.compute_language_model_loss(labels, logits)
+
+        if return_raw_logits:
+            return loss, logits
 
         return loss
 

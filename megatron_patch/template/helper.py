@@ -18,7 +18,7 @@ import torch
 import inspect
 
 from functools import partial
-from megatron.core import mpu
+from megatron.core import mpu, parallel_state
 
 from megatron.training import get_args, get_timers
 from megatron.training.utils import (
@@ -154,12 +154,46 @@ def loss_func(loss_mask: torch.Tensor, num_seqs: torch.Tensor, output_tensor: to
     """
     args = get_args()
 
-    losses = output_tensor.float()
-    loss_mask = loss_mask.view(-1).float()
+    def _mask_loss(masked_output_tensor):
+        if isinstance(masked_output_tensor, tuple):
+            masked_output_tensor, tp_reduce, is_sequence_parallel = masked_output_tensor
+        else:
+            tp_reduce, is_sequence_parallel = False, False
 
-    # NOTE: for each seq, sum(loss_mask) == 1 if num_seqs is not None, 
+        masked_loss_mask = loss_mask
+        if is_sequence_parallel:
+            idx = parallel_state.get_tensor_model_parallel_rank()
+            masked_loss_mask = torch.tensor_split(
+                masked_loss_mask, args.tensor_model_parallel_size, dim=1
+            )[idx]
+
+        losses = masked_output_tensor.view(-1).float()
+        used_loss_mask = masked_loss_mask.reshape(-1).float()
+        masked_loss = torch.sum(losses * used_loss_mask)
+
+        if tp_reduce or is_sequence_parallel:
+            torch.distributed.all_reduce(
+                masked_loss, group=parallel_state.get_tensor_model_parallel_group()
+            )
+
+        return masked_loss
+
+    flat_loss_mask = loss_mask.view(-1).float()
+    ce_report = None
+    kl_report = None
+
+    if isinstance(output_tensor, dict):
+        ce_loss = _mask_loss(output_tensor["ce_loss"])
+        kl_loss = _mask_loss(output_tensor["kl_loss"])
+        total_masked_loss = ce_loss + output_tensor["kl_loss_weight"] * kl_loss
+        ce_report = ce_loss.clone().detach()
+        kl_report = kl_loss.clone().detach()
+    else:
+        total_masked_loss = _mask_loss(output_tensor)
+
+    # NOTE: for each seq, sum(loss_mask) == 1 if num_seqs is not None,
     # otherwise sum(loss_mask) == n_tokens
-    loss = torch.stack([torch.sum(losses.view(-1) * loss_mask), loss_mask.sum()])
+    loss = torch.stack([total_masked_loss, flat_loss_mask.sum()])
     if args.context_parallel_size > 1:
         torch.distributed.all_reduce(loss, group=mpu.get_context_parallel_group())
 
@@ -173,6 +207,20 @@ def loss_func(loss_mask: torch.Tensor, num_seqs: torch.Tensor, output_tensor: to
 
     averaged_loss = average_losses_across_data_parallel_group(loss)
     averaged_loss = averaged_loss[0] / averaged_loss[1]
+    report = {"lm loss": averaged_loss}
+
+    if ce_report is not None:
+        ce_loss = torch.stack([ce_report, flat_loss_mask.sum()])
+        kl_loss = torch.stack([kl_report, flat_loss_mask.sum()])
+        if args.context_parallel_size > 1:
+            torch.distributed.all_reduce(ce_loss, group=mpu.get_context_parallel_group())
+            torch.distributed.all_reduce(kl_loss, group=mpu.get_context_parallel_group())
+        averaged_ce_loss = average_losses_across_data_parallel_group(ce_loss)
+        averaged_kl_loss = average_losses_across_data_parallel_group(kl_loss)
+        report = {
+            "lm loss": averaged_ce_loss[0] / averaged_ce_loss[1],
+            "kl loss": averaged_kl_loss[0] / averaged_kl_loss[1],
+        }
 
     # NOTE: The grad will be scaled down by CP size later, should not remove this multilication factor
     # LINK: https://github.com/NVIDIA/Megatron-LM/issues/906
@@ -180,8 +228,8 @@ def loss_func(loss_mask: torch.Tensor, num_seqs: torch.Tensor, output_tensor: to
 
     if num_seqs is None:
         # average on token-level
-        return loss[0] / loss[1] * args.context_parallel_size, {"lm loss": averaged_loss}
-    return loss[0] * args.context_parallel_size, num_seqs.sum(), {"lm loss": averaged_loss}
+        return loss[0] / loss[1] * args.context_parallel_size, report
+    return loss[0] * args.context_parallel_size, num_seqs.sum(), report
 
 def forward_step(data_iterator, model):
     """Forward training step.

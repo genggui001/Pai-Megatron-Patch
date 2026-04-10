@@ -579,4 +579,48 @@ def get_patch_args(parser):
         help="Number of MTP steps.",
     )
 
+    group.add_argument(
+        "--enable-kl-distill",
+        action="store_true",
+        help="Enable KL distillation against a frozen base model.",
+    )
+    group.add_argument(
+        "--base-model-load",
+        type=str,
+        default=None,
+        help="Checkpoint directory for the frozen base model used in KL distillation.",
+    )
+    group.add_argument(
+        "--base-model-ckpt-format",
+        type=str,
+        default=None,
+        choices=["torch", "torch_dist", "torch_dcp"],
+        help="Checkpoint format for the base model if it differs from the student checkpoint.",
+    )
+    group.add_argument(
+        "--base-model-use-mtp",
+        action="store_true",
+        help="Build the base model with the same MTP head layout as the student.",
+    )
+    group.add_argument(
+        "--kl-loss-weight",
+        type=float,
+        default=0.0,
+        help="Weight for the KL distillation term in CE + alpha * KL.",
+    )
+    group.add_argument(
+        "--kl-loss-temperature",
+        type=float,
+        default=1.0,
+        help="Temperature applied before logits KL distillation.",
+    )
+    group.add_argument(
+        "--kl-loss-reverse",
+        action="store_true",
+        help=(
+            "Use reverse KL, i.e. KL(student || teacher). "
+            "Default is forward KL, i.e. KL(teacher || student)."
+        ),
+    )
+
     return parser

@@ -14,6 +14,7 @@
 import datasets
 datasets.disable_caching()
 
+import copy
 import re
 from functools import partial
 import torch
@@ -28,12 +29,17 @@ from megatron_patch.arguments import get_patch_args
 from megatron.training import pretrain, print_rank_0
 
 torch._dynamo.config.suppress_errors = True
+torch._dynamo.config.cache_size_limit = 32
 
 # from megatron.core.models.mamba import MambaModel
 from megatron.training import print_rank_0
 from megatron.training.arguments import core_transformer_config_from_args
 
 from megatron_patch.model.qwen3_next.mamba_model import MambaModel
+from megatron_patch.model.qwen3_next.kl_distillation import (
+    KLDistillationWrapper,
+    load_teacher_checkpoint,
+)
 from megatron_patch.model.qwen3_next.layer_specs import get_qwen3_next_layer_spec, get_qwen3_mtp_block_spec
 from megatron_patch.model.qwen3_next.transformer_config import Qwen3NextTransformerConfig
 
@@ -67,6 +73,7 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         rotary_percent=args.rotary_percent,
         rotary_base=args.rotary_base,
         mtp_block_spec=get_qwen3_mtp_block_spec(args, config),
+        pg_collection=pg_collection,
     )
 
     for name, param in model.named_parameters():
@@ -80,6 +87,49 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
     #     if len(expert_idx) > 0 and int(expert_idx[0]) % 4 == 0:
     #         print(f"Disabling parameter: {name}")
     #         param.requires_grad = False
+
+    if args.enable_kl_distill:
+        assert args.base_model_load is not None, "--base-model-load is required when KL distillation is enabled."
+        assert args.kl_loss_weight > 0.0, "--kl-loss-weight must be positive when KL distillation is enabled."
+        teacher_config = copy.deepcopy(config)
+        if not args.base_model_use_mtp:
+            teacher_config.mtp_num_layers = None
+            teacher_config.mtp_steps = None
+
+        teacher_model = MambaModel(
+            config=teacher_config,
+            mamba_stack_spec=get_qwen3_next_layer_spec(args),
+            vocab_size=args.padded_vocab_size,
+            max_sequence_length=args.max_position_embeddings,
+            pre_process=pre_process,
+            hybrid_attention_ratio=args.hybrid_attention_ratio,
+            hybrid_mlp_ratio=args.hybrid_mlp_ratio,
+            hybrid_override_pattern=args.hybrid_override_pattern,
+            post_process=post_process,
+            fp16_lm_cross_entropy=args.fp16_lm_cross_entropy,
+            parallel_output=True,
+            share_embeddings_and_output_weights=not args.untie_embeddings_and_output_weights,
+            position_embedding_type=args.position_embedding_type,
+            rotary_percent=args.rotary_percent,
+            rotary_base=args.rotary_base,
+            mtp_block_spec=get_qwen3_mtp_block_spec(args, teacher_config)
+            if args.base_model_use_mtp
+            else None,
+            pg_collection=pg_collection,
+        )
+        load_teacher_checkpoint(
+            teacher_model,
+            load_arg="base_model_load",
+            strict=args.base_model_use_mtp,
+            ckpt_format=args.base_model_ckpt_format,
+        )
+        model = KLDistillationWrapper(
+            student_model=model,
+            teacher_model=teacher_model,
+            kl_loss_weight=args.kl_loss_weight,
+            kl_temperature=args.kl_loss_temperature,
+            kl_reverse=args.kl_loss_reverse,
+        )
 
     return model
 
