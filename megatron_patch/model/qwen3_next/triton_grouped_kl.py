@@ -503,6 +503,8 @@ if HAS_TRITON:
         teacher_ptr,
         student_row_max_ptr,
         student_log_denom_ptr,
+        teacher_row_max_ptr,
+        teacher_log_denom_ptr,
         global_kl_ptr,
         grad_output_ptr,
         grad_student_ptr,
@@ -529,13 +531,16 @@ if HAS_TRITON:
 
         student_row_max = tl.load(student_row_max_ptr + row_idx)
         student_log_denom = tl.load(student_log_denom_ptr + row_idx)
+        teacher_row_max = tl.load(teacher_row_max_ptr + row_idx)
+        teacher_log_denom = tl.load(teacher_log_denom_ptr + row_idx)
         grad_output = tl.load(grad_output_ptr + row_idx)
         global_kl = tl.load(global_kl_ptr + row_idx)
 
         student_vals = tl.load(student_row_ptr + cols, mask=mask, other=0.0).to(tl.float32)
-        teacher_log_prob = tl.load(teacher_row_ptr + cols, mask=mask, other=0.0).to(tl.float32)
+        teacher_vals = tl.load(teacher_row_ptr + cols, mask=mask, other=0.0).to(tl.float32)
 
         student_log_prob = student_vals * inv_temperature - student_row_max - student_log_denom
+        teacher_log_prob = teacher_vals * inv_temperature - teacher_row_max - teacher_log_denom
         student_prob = tl.exp(student_log_prob)
 
         grad_vals = student_prob * (student_log_prob - teacher_log_prob - global_kl)
@@ -546,15 +551,17 @@ if HAS_TRITON:
     @triton.jit
     def _grouped_kl_backward_forward_kernel(
         student_ptr,
-        teacher_prob_ptr,
+        teacher_ptr,
         student_row_max_ptr,
         student_log_denom_ptr,
+        teacher_row_max_ptr,
+        teacher_log_denom_ptr,
         grad_output_ptr,
         grad_student_ptr,
         num_rows,
         num_cols,
         stride_student_row,
-        stride_teacher_prob_row,
+        stride_teacher_row,
         stride_grad_student_row,
         inv_temperature,
         BLOCK_SIZE_V: tl.constexpr,
@@ -569,18 +576,22 @@ if HAS_TRITON:
         mask = cols < num_cols
 
         student_row_ptr = student_ptr + row_idx * stride_student_row
-        teacher_prob_row_ptr = teacher_prob_ptr + row_idx * stride_teacher_prob_row
+        teacher_row_ptr = teacher_ptr + row_idx * stride_teacher_row
         grad_row_ptr = grad_student_ptr + row_idx * stride_grad_student_row
 
         student_row_max = tl.load(student_row_max_ptr + row_idx)
         student_log_denom = tl.load(student_log_denom_ptr + row_idx)
+        teacher_row_max = tl.load(teacher_row_max_ptr + row_idx)
+        teacher_log_denom = tl.load(teacher_log_denom_ptr + row_idx)
         grad_output = tl.load(grad_output_ptr + row_idx)
 
         student_vals = tl.load(student_row_ptr + cols, mask=mask, other=0.0).to(tl.float32)
-        teacher_prob = tl.load(teacher_prob_row_ptr + cols, mask=mask, other=0.0).to(tl.float32)
+        teacher_vals = tl.load(teacher_row_ptr + cols, mask=mask, other=0.0).to(tl.float32)
 
         student_log_prob = student_vals * inv_temperature - student_row_max - student_log_denom
+        teacher_log_prob = teacher_vals * inv_temperature - teacher_row_max - teacher_log_denom
         student_prob = tl.exp(student_log_prob)
+        teacher_prob = tl.exp(teacher_log_prob)
         grad_vals = (student_prob - teacher_prob) * grad_output * inv_temperature
         tl.store(grad_row_ptr + cols, grad_vals, mask=mask)
 
@@ -588,14 +599,16 @@ if HAS_TRITON:
     @triton.jit
     def _grouped_reverse_kl_local_kernel(
         student_ptr,
-        teacher_log_prob_ptr,
+        teacher_ptr,
         student_row_max_ptr,
         student_log_denom_ptr,
+        teacher_row_max_ptr,
+        teacher_log_denom_ptr,
         output_ptr,
         num_rows,
         num_cols,
         stride_student_row,
-        stride_teacher_log_prob_row,
+        stride_teacher_row,
         stride_output_row,
         inv_temperature,
         BLOCK_SIZE_V: tl.constexpr,
@@ -605,9 +618,11 @@ if HAS_TRITON:
             return
 
         student_row_ptr = student_ptr + row_idx * stride_student_row
-        teacher_log_prob_row_ptr = teacher_log_prob_ptr + row_idx * stride_teacher_log_prob_row
+        teacher_row_ptr = teacher_ptr + row_idx * stride_teacher_row
         student_row_max = tl.load(student_row_max_ptr + row_idx)
         student_log_denom = tl.load(student_log_denom_ptr + row_idx)
+        teacher_row_max = tl.load(teacher_row_max_ptr + row_idx)
+        teacher_log_denom = tl.load(teacher_log_denom_ptr + row_idx)
 
         kl_acc = 0.0
         for start in tl.range(0, num_cols, BLOCK_SIZE_V):
@@ -615,49 +630,14 @@ if HAS_TRITON:
             mask = cols < num_cols
 
             student_vals = tl.load(student_row_ptr + cols, mask=mask, other=0.0).to(tl.float32)
-            teacher_log_prob = tl.load(
-                teacher_log_prob_row_ptr + cols, mask=mask, other=0.0
-            ).to(tl.float32)
+            teacher_vals = tl.load(teacher_row_ptr + cols, mask=mask, other=0.0).to(tl.float32)
             student_log_prob = student_vals * inv_temperature - student_row_max - student_log_denom
+            teacher_log_prob = teacher_vals * inv_temperature - teacher_row_max - teacher_log_denom
             student_prob = tl.exp(student_log_prob)
             row_kl = student_prob * (student_log_prob - teacher_log_prob)
             kl_acc += tl.sum(tl.where(mask, row_kl, 0.0), axis=0)
 
         tl.store(output_ptr + row_idx * stride_output_row, kl_acc)
-
-    @triton.autotune(configs=_2D_KERNEL_CONFIGS, key=["num_cols", "store_exp"])
-    @triton.jit
-    def _teacher_cache_from_stats_kernel(
-        teacher_ptr,
-        teacher_row_max_ptr,
-        teacher_log_denom_ptr,
-        output_ptr,
-        num_rows,
-        num_cols,
-        stride_teacher_row,
-        stride_output_row,
-        inv_temperature,
-        store_exp: tl.constexpr,
-        BLOCK_SIZE_V: tl.constexpr,
-    ):
-        row_idx = tl.program_id(0).to(tl.int64)
-        block_idx = tl.program_id(1).to(tl.int64)
-        if row_idx >= num_rows:
-            return
-
-        start = block_idx * BLOCK_SIZE_V
-        cols = (start + tl.arange(0, BLOCK_SIZE_V)).to(tl.int64)
-        mask = cols < num_cols
-
-        teacher_row_ptr = teacher_ptr + row_idx * stride_teacher_row
-        output_row_ptr = output_ptr + row_idx * stride_output_row
-        teacher_row_max = tl.load(teacher_row_max_ptr + row_idx)
-        teacher_log_denom = tl.load(teacher_log_denom_ptr + row_idx)
-
-        teacher_vals = tl.load(teacher_row_ptr + cols, mask=mask, other=0.0).to(tl.float32)
-        teacher_log_prob = teacher_vals * inv_temperature - teacher_row_max - teacher_log_denom
-        output_vals = tl.exp(teacher_log_prob) if store_exp else teacher_log_prob
-        tl.store(output_row_ptr + cols, output_vals, mask=mask)
 
 
 def _rowwise_online_logsumexp_triton(
@@ -677,32 +657,6 @@ def _rowwise_online_logsumexp_triton(
         1.0 / temperature,
     )
     return row_max, exp_sum
-
-
-def _build_teacher_cache_triton(
-    teacher_2d: torch.Tensor,
-    teacher_row_max: torch.Tensor,
-    teacher_log_denom: torch.Tensor,
-    *,
-    temperature: float,
-    store_exp: bool,
-) -> torch.Tensor:
-    output = torch.empty_like(teacher_2d)
-    num_rows, num_cols = teacher_2d.shape
-    grid = lambda meta: (num_rows, triton.cdiv(num_cols, meta["BLOCK_SIZE_V"]))
-    _teacher_cache_from_stats_kernel[grid](
-        teacher_2d,
-        teacher_row_max,
-        teacher_log_denom,
-        output,
-        num_rows,
-        num_cols,
-        teacher_2d.stride(0),
-        output.stride(0),
-        1.0 / temperature,
-        store_exp=store_exp,
-    )
-    return output
 
 
 class TritonGroupedKLFunction(torch.autograd.Function):
@@ -761,19 +715,18 @@ class TritonGroupedKLFunction(torch.autograd.Function):
         ctx.temperature = temperature
         ctx.reverse = reverse
         ctx.tp_group = tp_group
-        teacher_cache = _build_teacher_cache_triton(
-            teacher_2d,
-            teacher_row_max,
-            teacher_log_denom,
-            temperature=temperature,
-            store_exp=not reverse,
+        ctx.save_for_backward(
+            student_2d, teacher_2d, student_row_max, student_log_denom,
+            teacher_row_max, teacher_log_denom,
         )
-        ctx.save_for_backward(student_2d, teacher_cache, student_row_max, student_log_denom)
         return local_loss.reshape(leading_shape)
 
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor):
-        student_2d, teacher_cache, student_row_max, student_log_denom = ctx.saved_tensors
+        (
+            student_2d, teacher_2d, student_row_max, student_log_denom,
+            teacher_row_max, teacher_log_denom,
+        ) = ctx.saved_tensors
 
         grad_output_2d = grad_output.reshape(-1).contiguous().float()
         grad_student = torch.empty_like(student_2d, dtype=torch.float32)
@@ -785,14 +738,16 @@ class TritonGroupedKLFunction(torch.autograd.Function):
             )
             _grouped_reverse_kl_local_kernel[(num_rows,)](
                 student_2d,
-                teacher_cache,
+                teacher_2d,
                 student_row_max,
                 student_log_denom,
+                teacher_row_max,
+                teacher_log_denom,
                 local_reverse_kl,
                 num_rows,
                 num_cols,
                 student_2d.stride(0),
-                teacher_cache.stride(0),
+                teacher_2d.stride(0),
                 local_reverse_kl.stride(0),
                 1.0 / ctx.temperature,
             )
@@ -803,16 +758,18 @@ class TritonGroupedKLFunction(torch.autograd.Function):
             grid = lambda meta: (num_rows, triton.cdiv(num_cols, meta["BLOCK_SIZE_V"]))
             _grouped_kl_backward_kernel[grid](
                 student_2d,
-                teacher_cache,
+                teacher_2d,
                 student_row_max,
                 student_log_denom,
+                teacher_row_max,
+                teacher_log_denom,
                 global_loss,
                 grad_output_2d,
                 grad_student,
                 num_rows,
                 num_cols,
                 student_2d.stride(0),
-                teacher_cache.stride(0),
+                teacher_2d.stride(0),
                 grad_student.stride(0),
                 1.0 / ctx.temperature,
             )
@@ -820,15 +777,17 @@ class TritonGroupedKLFunction(torch.autograd.Function):
             grid = lambda meta: (num_rows, triton.cdiv(num_cols, meta["BLOCK_SIZE_V"]))
             _grouped_kl_backward_forward_kernel[grid](
                 student_2d,
-                teacher_cache,
+                teacher_2d,
                 student_row_max,
                 student_log_denom,
+                teacher_row_max,
+                teacher_log_denom,
                 grad_output_2d,
                 grad_student,
                 num_rows,
                 num_cols,
                 student_2d.stride(0),
-                teacher_cache.stride(0),
+                teacher_2d.stride(0),
                 grad_student.stride(0),
                 1.0 / ctx.temperature,
             )
