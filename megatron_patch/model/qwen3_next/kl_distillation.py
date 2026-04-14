@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from megatron.core import parallel_state
+from megatron.core import parallel_state, tensor_parallel
 from megatron.core.parallel_state import (
     get_pipeline_model_parallel_world_size,
     get_tensor_model_parallel_group,
@@ -162,7 +162,10 @@ class TensorParallelLogitsKLLoss(nn.Module):
         else:
             loss = self._torch_forward(predictions, targets)
 
-        return (loss.transpose(0, 1).contiguous(), True, False)
+        if tp_group is not None:
+            loss = tensor_parallel.reduce_from_tensor_model_parallel_region(loss)
+
+        return (loss.transpose(0, 1).contiguous(), False, False)
 
 
 def load_teacher_checkpoint(
