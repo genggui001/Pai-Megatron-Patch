@@ -7,7 +7,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from megatron.core import parallel_state, tensor_parallel
+
+from megatron.core import tensor_parallel
 from megatron.core.parallel_state import (
     get_pipeline_model_parallel_world_size,
     get_tensor_model_parallel_group,
@@ -21,9 +22,9 @@ from megatron.training.checkpointing import load_checkpoint
 
 from megatron_patch.model.qwen3_next.triton_grouped_kl import (
     HAS_TRITON,
+    triton_grouped_kl,
     triton_grouped_kl_tp,
 )
-
 
 class _AllReduce(torch.autograd.Function):
     """All-reduce that preserves backward propagation."""
@@ -60,10 +61,9 @@ class TensorParallelLogitsKLLoss(nn.Module):
     - reverse=True => reverse KL in the paper notation: KL(Q || P)
     """
 
-    def __init__(self, model_config, temperature: float = 1.0, reverse: bool = False):
+    def __init__(self, model_config, reverse: bool = False):
         super().__init__()
         self._config = model_config
-        self._temperature = temperature
         self._reverse = reverse
 
     def _torch_forward(self, predictions: Tensor, targets: Tensor) -> Tensor:
@@ -71,9 +71,7 @@ class TensorParallelLogitsKLLoss(nn.Module):
 
         # In this file, predictions are student logits and targets are teacher logits.
         output_teacher = targets.float()
-        output_teacher.div_(self._temperature)
         output_student = predictions.float()
-        output_student.div_(self._temperature)
 
         if self._config.tensor_model_parallel_size > 1:
             teacher_logits_max, _ = torch.max(output_teacher, dim=-1)
@@ -152,20 +150,26 @@ class TensorParallelLogitsKLLoss(nn.Module):
         )
 
         if HAS_TRITON and predictions.is_cuda and targets.is_cuda:
-            loss = triton_grouped_kl_tp(
-                predictions,
-                targets.detach(),
-                temperature=self._temperature,
-                reverse=self._reverse,
-                tp_group=tp_group,
-            )
+            if tp_group is None:
+                loss = triton_grouped_kl(
+                    predictions,
+                    targets.detach(),
+                    reverse=self._reverse,
+                )
+            else:
+                loss = triton_grouped_kl_tp(
+                    predictions,
+                    targets.detach(),
+                    reverse=self._reverse,
+                    tp_group=tp_group,
+                )
         else:
             loss = self._torch_forward(predictions, targets)
 
         if tp_group is not None:
             loss = tensor_parallel.reduce_from_tensor_model_parallel_region(loss)
 
-        return (loss.transpose(0, 1).contiguous(), False, False)
+        return loss.transpose(0, 1).contiguous()
 
 
 def load_teacher_checkpoint(
@@ -200,22 +204,23 @@ class KLDistillationWrapper(nn.Module):
         student_model: nn.Module,
         teacher_model: nn.Module,
         kl_loss_weight: float,
-        kl_temperature: float = 1.0,
         kl_reverse: bool = False,
     ) -> None:
         super().__init__()
         self.student_model = student_model
         self.teacher_model = teacher_model
         self.kl_loss_weight = kl_loss_weight
+        self.kl_reverse = kl_reverse
         self.kl_loss = TensorParallelLogitsKLLoss(
             get_attr_wrapped_model(student_model, "config", allow_none=False),
-            temperature=kl_temperature,
             reverse=kl_reverse,
         )
         self._tensor_split_idx = get_attr_wrapped_model(
             student_model, "config", allow_none=False
         ).hidden_size
         self._freeze_teacher_model()
+        impl_name = "triton_grouped_kl_tp" if HAS_TRITON else "native"
+        print_rank_0(f"KLDistillationWrapper using logits KL path ({impl_name}).")
 
     def __getattr__(self, name: str):
         try:
@@ -324,6 +329,33 @@ class KLDistillationWrapper(nn.Module):
 
         return adjust_tensor_shapes
 
+    def _forward_last_stage_with_native_kl(self, *args, **kwargs):
+        assert self.kl_loss is not None
+
+        teacher_kwargs = dict(kwargs)
+        student_kwargs = dict(kwargs)
+
+        student_kwargs["return_raw_logits"] = True
+        student_loss, student_logits = self.student_model(*args, **student_kwargs)
+
+        teacher_kwargs["labels"] = None
+        teacher_kwargs["return_raw_logits"] = True
+        with torch.no_grad():
+            self.teacher_model.eval()
+            teacher_logits = self.teacher_model(*args, **teacher_kwargs)
+            teacher_logits = teacher_logits.detach()
+
+        ce_loss = student_loss
+        kl_loss = self.kl_loss(student_logits, teacher_logits)
+        all_loss = ce_loss + self.kl_loss_weight * kl_loss
+
+        return {
+            "all_loss": all_loss,
+            "ce_loss": ce_loss,
+            "kl_loss": kl_loss,
+            "kl_loss_weight": self.kl_loss_weight,
+        }
+
     def forward(self, *args, **kwargs):
         if not self.training:
             return self.student_model(*args, **kwargs)
@@ -340,18 +372,4 @@ class KLDistillationWrapper(nn.Module):
             student_output = self.student_model(*args, **student_kwargs)
             return torch.cat([student_output, teacher_output], dim=-1)
 
-        student_kwargs["return_raw_logits"] = True
-        student_loss, student_logits = self.student_model(*args, **student_kwargs)
-
-        teacher_kwargs["labels"] = None
-        teacher_kwargs["return_raw_logits"] = True
-        with torch.no_grad():
-            self.teacher_model.eval()
-            teacher_logits = self.teacher_model(*args, **teacher_kwargs)
-            teacher_logits = teacher_logits.detach()
-
-        return {
-            "ce_loss": student_loss,
-            "kl_loss": self.kl_loss(student_logits, teacher_logits),
-            "kl_loss_weight": self.kl_loss_weight,
-        }
+        return self._forward_last_stage_with_native_kl(*args, **kwargs)

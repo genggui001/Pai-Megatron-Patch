@@ -185,7 +185,8 @@ def loss_func(loss_mask: torch.Tensor, num_seqs: torch.Tensor, output_tensor: to
     if isinstance(output_tensor, dict):
         ce_loss = _mask_loss(output_tensor["ce_loss"])
         kl_loss = _mask_loss(output_tensor["kl_loss"])
-        total_masked_loss = ce_loss + output_tensor["kl_loss_weight"] * kl_loss
+        total_masked_loss = _mask_loss(output_tensor["all_loss"])
+
         ce_report = ce_loss.clone().detach()
         kl_report = kl_loss.clone().detach()
     else:

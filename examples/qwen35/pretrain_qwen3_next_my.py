@@ -127,7 +127,6 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
             student_model=model,
             teacher_model=teacher_model,
             kl_loss_weight=args.kl_loss_weight,
-            kl_temperature=args.kl_loss_temperature,
             kl_reverse=args.kl_loss_reverse,
         )
 

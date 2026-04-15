@@ -200,6 +200,49 @@ class MambaModel(LanguageModule):
         assert len(input_tensor) == 1, 'input_tensor should only be length 1 for gpt/bert'
         self.decoder.set_input_tensor(input_tensor[0])
 
+    def _get_output_classifier_weight(self, output_weight: Optional[Tensor] = None) -> Tensor:
+        if output_weight is not None:
+            return output_weight
+        if self.share_embeddings_and_output_weights:
+            return self.shared_embedding_or_output_weight()
+        return self.output_layer.weight
+
+    def _get_vocab_parallel_options(
+        self,
+        classifier_weight: Tensor,
+    ):
+        vocab_parallel_options = None
+        if classifier_weight.size(0) != self.vocab_size:
+            if VocabParallelOptions is None:
+                raise RuntimeError("cut_cross_entropy vocab parallel support is not available")
+            classifier_tp_group = getattr(self.output_layer, "tp_group", self.pg_collection.tp)
+            # When sequence parallel is enabled we explicitly gather hidden states before
+            # calling cut_cross_entropy. The gather op already reduce-scatters dH in
+            # backward, so vocab-parallel loss must not perform an additional TP dH reduce.
+            reduce_e_grad = not self.output_layer.sequence_parallel
+            vocab_parallel_options = VocabParallelOptions.from_vocab(
+                self.vocab_size,
+                group=classifier_tp_group,
+                reduce_e_grad=reduce_e_grad,
+            )
+        return vocab_parallel_options
+
+    def prepare_language_model_loss_inputs(
+        self,
+        hidden_states: Tensor,
+        output_weight: Optional[Tensor] = None,
+    ):
+        if self.output_layer.sequence_parallel:
+            hidden_states = tensor_parallel.gather_from_sequence_parallel_region(
+                hidden_states,
+                tensor_parallel_output_grad=True,
+                group=self.pg_collection.tp,
+            )
+
+        classifier_weight = self._get_output_classifier_weight(output_weight)
+        vocab_parallel_options = self._get_vocab_parallel_options(classifier_weight)
+        return hidden_states, classifier_weight, vocab_parallel_options
+
     def _compute_language_model_loss_with_cut_cross_entropy(
         self,
         hidden_states: Tensor,
@@ -211,24 +254,9 @@ class MambaModel(LanguageModule):
         if linear_cross_entropy is None:
             raise RuntimeError("cut_cross_entropy is not available")
 
-        if self.output_layer.sequence_parallel:
-            hidden_states = tensor_parallel.gather_from_sequence_parallel_region(
-                hidden_states,
-                tensor_parallel_output_grad=True,
-                group=self.pg_collection.tp,
-            )
-
-        classifier_weight = output_weight if output_weight is not None else self.output_layer.weight
-
-        classifier_tp_group = getattr(self.output_layer, "tp_group", self.pg_collection.tp)
-
-        vocab_parallel_options = None
-        if classifier_weight.size(0) != self.vocab_size:
-            if VocabParallelOptions is None:
-                raise RuntimeError("cut_cross_entropy vocab parallel support is not available")
-            vocab_parallel_options = VocabParallelOptions.from_vocab(
-                self.vocab_size, group=classifier_tp_group
-            )
+        hidden_states, classifier_weight, vocab_parallel_options = (
+            self.prepare_language_model_loss_inputs(hidden_states, output_weight)
+        )
 
         cce_labels = labels.transpose(0, 1).contiguous()
         if loss_mask is not None:
@@ -351,7 +379,7 @@ class MambaModel(LanguageModule):
 
         # print("loss_mask", loss_mask)
 
-        if self.mtp_process:
+        if self.mtp_process and labels is not None:
             if self.config.mtp_steps is not None:
                 mtp_steps = self.config.mtp_steps
             else:
