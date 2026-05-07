@@ -54,11 +54,15 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         config.num_k_heads = args.mamba_num_groups
         config.num_v_heads = args.mamba_num_heads
 
+        # moe_expert_use_fake_int4_quantization
+        config.moe_expert_use_fake_int4_quantization = args.moe_expert_use_fake_int4_quantization
+        config.moe_expert_fake_int4_quantization_group_size = args.moe_expert_fake_int4_quantization_group_size
+
     assert args.use_legacy_models is False, "Mamba only supported in Mcore!"
 
     model = MambaModel(
         config=config,
-        mamba_stack_spec=get_qwen3_next_layer_spec(args),
+        mamba_stack_spec=get_qwen3_next_layer_spec(args, config),
         vocab_size=args.padded_vocab_size,
         max_sequence_length=args.max_position_embeddings,
         pre_process=pre_process,
@@ -88,6 +92,10 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
     #         print(f"Disabling parameter: {name}")
     #         param.requires_grad = False
 
+    for name, m in model.named_modules():
+        if getattr(m, "use_fake_int4_quantization", False):
+            print(f"student_model: {name} is using fake int4 quantization.")
+
     if args.enable_kl_distill:
         assert args.base_model_load is not None, "--base-model-load is required when KL distillation is enabled."
         assert args.kl_loss_weight > 0.0, "--kl-loss-weight must be positive when KL distillation is enabled."
@@ -96,9 +104,13 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
             teacher_config.mtp_num_layers = None
             teacher_config.mtp_steps = None
 
+        # disable fake int4 quantization for teacher model, which may cause instability in KL distillation
+        teacher_config.moe_expert_use_fake_int4_quantization = False
+        teacher_config.moe_expert_fake_int4_quantization_group_size = 0
+
         teacher_model = MambaModel(
             config=teacher_config,
-            mamba_stack_spec=get_qwen3_next_layer_spec(args),
+            mamba_stack_spec=get_qwen3_next_layer_spec(args, teacher_config),
             vocab_size=args.padded_vocab_size,
             max_sequence_length=args.max_position_embeddings,
             pre_process=pre_process,
@@ -117,6 +129,11 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
             else None,
             pg_collection=pg_collection,
         )
+
+        for name, m in teacher_model.named_modules():
+            if getattr(m, "use_fake_int4_quantization", False):
+                print(f"teacher_model: {name} is using fake int4 quantization.")
+
         load_teacher_checkpoint(
             teacher_model,
             load_arg="base_model_load",

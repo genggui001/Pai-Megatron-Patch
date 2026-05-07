@@ -622,5 +622,20 @@ def get_patch_args(parser):
             "Default is forward KL, i.e. KL(teacher || student)."
         ),
     )
+    group.add_argument(
+        "--moe-expert-use-fake-int4-quantization",
+        action="store_true",
+        help="Enable fake int4 quantization for MoE experts.",
+    )
+    group.add_argument(
+        "--moe-expert-fake-int4-quantization-group-size",
+        type=int,
+        default=0,
+        help=(
+            "Group size for fake int4 quantization of MoE experts. "
+            "Must be a positive integer and is only relevant if "
+            "--moe-expert-use-fake-int4-quantization is set."
+        ),
+    )
 
     return parser

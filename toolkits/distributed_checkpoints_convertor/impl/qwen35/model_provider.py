@@ -47,7 +47,7 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
 
     model = MambaModel(
         config=config,
-        mamba_stack_spec=get_qwen3_next_layer_spec(args),
+        mamba_stack_spec=get_qwen3_next_layer_spec(args, config),
         vocab_size=args.padded_vocab_size,
         max_sequence_length=args.max_position_embeddings,
         pre_process=pre_process,

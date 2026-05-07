@@ -171,7 +171,8 @@ class HF2MGSynchronizer(_HF2MGSynchronizer):
             )
 
             # mtp layer
-            self.set_moe_layer_state(mg_model.mtp.layers[0].transformer_layer.mlp, hf_model.mtp.layers[0].mlp)
+            # self.set_moe_layer_state(mg_model.mtp.layers[0].transformer_layer.mlp, hf_model.mtp.layers[0].mlp)
+            self.set_aggregation_moe_layer_state(mg_model.mtp.layers[0].transformer_layer.mlp, hf_model.mtp.layers[0].mlp)
             self.copy(hf_model.mtp.layers[0].post_attention_layernorm.weight, mg_model.mtp.layers[0].transformer_layer.pre_mlp_layernorm.weight)
             self.set_gated_selfattn_state(mg_model.mtp.layers[0].transformer_layer.self_attention, hf_model.mtp.layers[0].self_attn)
             self.copy(hf_model.mtp.layers[0].input_layernorm.weight, mg_model.mtp.layers[0].transformer_layer.self_attention.linear_qgkv.layer_norm_weight)
@@ -362,7 +363,7 @@ class HF2MGSynchronizer(_HF2MGSynchronizer):
                 attn_proj_bias = attn.linear_qgkv.bias
             else:
                 attn_proj_bias = torch.cat([
-                    self.load_tensor(hf_attn.q_proj.bias).reshape((num_query_groups, num_querys_per_group*dim, -1)),
+                    self.load_tensor(hf_attn.q_proj.bias).reshape((num_query_groups, num_querys_per_group * 2 * dim, -1)),
                     self.load_tensor(hf_attn.k_proj.bias).reshape((num_query_groups, dim, -1)),
                     self.load_tensor(hf_attn.v_proj.bias).reshape((num_query_groups, dim, -1)),
                 ], dim=1)

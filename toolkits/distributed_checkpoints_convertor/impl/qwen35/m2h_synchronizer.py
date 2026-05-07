@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections import defaultdict
 import logging
 
 import torch
 from typing import Dict
-from general.m2h_synchronizer import MG2HFSynchronizer as _MG2HFSynchronizer
+from general.m2h_synchronizer import MG2HFSynchronizer as _MG2HFSynchronizer, ParamMergeError
 from general.synchronizer import ParamType
 
 class MG2HFSynchronizer(_MG2HFSynchronizer):
@@ -23,11 +24,111 @@ class MG2HFSynchronizer(_MG2HFSynchronizer):
     def __init__(self, load_dir, model_provider_func=None):
         super().__init__(load_dir, model_provider_func)
         self.layout = self.get_hybrid_layout()
-        assert self.tp_size == 1, "Currently MCore2HF conversion for Qwen3-Next is only available with TP 1."
+        assert self.tp_size == 1, "Currently MCore2HF conversion for Qwen3.5 is only available with TP 1."
 
     def get_hybrid_layout(self) -> str:
         assert self.args.hybrid_override_pattern is not None
         return self.args.hybrid_override_pattern
+
+    def get_export_state_dict(self):
+        return {
+            key: value
+            for key, value in self._hfmodel.state_dict().items()
+            if ".visual." not in key and not key.startswith("visual.")
+        }
+
+    def _copy_impl(self, src_tensor, dst_tensor, param_type: ParamType=ParamType.UNIQUE):
+        if param_type == ParamType.AGGREGATION_MOE_ROW:
+            param_id = self._hf_params_to_id[dst_tensor]
+            if self.edp_rank != 0:
+                return
+            self._local_params[param_id] = src_tensor
+            self._merge_type[param_id] = param_type.value
+            return
+        return super()._copy_impl(src_tensor, dst_tensor, param_type=param_type)
+
+    def _merge_data(self, merge_type: ParamType, tensor_dict) -> torch.Tensor:
+        if merge_type not in [ParamType.MOE_GATE_UP, ParamType.AGGREGATION_MOE_ROW]:
+            return super()._merge_data(merge_type, tensor_dict)
+
+        global_ranks = torch.tensor(list(tensor_dict.keys()), dtype=torch.long, device=self.device)
+        ranks = self._rank_mapping.index_select(0, global_ranks)
+        tensor_dict = {k: v for k, v in tensor_dict.items() if self._rank_mapping[k, 1] == ranks[:, 1].min()}
+
+        if self.debug:
+            filtered_ranks = self._rank_mapping.index_select(
+                0,
+                torch.tensor(list(tensor_dict.keys()), dtype=torch.long, device=self.device),
+            )
+            if filtered_ranks[:, 5].any():
+                raise ParamMergeError("Unexpected expert parameter data from non-zero expert dp rank")
+
+        tensors_by_ep = defaultdict(dict)
+        for global_rank, data in tensor_dict.items():
+            ep_rank = int(self._rank_mapping[global_rank][3])
+            etp_rank = int(self._rank_mapping[global_rank][2])
+            tensors_by_ep[ep_rank][etp_rank] = data
+
+        merged = []
+        for ep_rank in sorted(tensors_by_ep.keys()):
+            merged.append(torch.cat([shard for _, shard in sorted(tensors_by_ep[ep_rank].items())], dim=2))
+
+        result = torch.cat(merged, dim=0)
+        if merge_type == ParamType.MOE_GATE_UP:
+            return result.flatten(1, 2)
+        return result
+
+    def get_aggregation_mlp_state(self, mlp, expert_id=''):
+        hidden_size = getattr(mlp.linear_fc1, f'weight{expert_id}').shape[-1]
+        gate_up_proj_weight = getattr(mlp.linear_fc1, f'weight{expert_id}').reshape(2, -1, hidden_size)
+        return gate_up_proj_weight, getattr(mlp.linear_fc2, f'weight{expert_id}')
+
+    def set_sequential_aggregation_mlp_state(self, experts, hf_experts):
+        experts = experts.local_experts
+        gate_up_proj_weights = []
+        down_proj_weights = []
+        for mg_expert_id, hf_expert_id in self._build_expert_parallel_mapping().items():
+            del hf_expert_id
+            gate_up_proj_weight, down_proj_weight = self.get_aggregation_mlp_state(experts[mg_expert_id])
+            gate_up_proj_weights.append(gate_up_proj_weight)
+            down_proj_weights.append(down_proj_weight)
+
+        self.copy(torch.stack(gate_up_proj_weights), hf_experts.gate_up_proj, param_type=ParamType.MOE_GATE_UP)
+        self.copy(torch.stack(down_proj_weights), hf_experts.down_proj, param_type=ParamType.AGGREGATION_MOE_ROW)
+
+    def set_group_aggregation_mlp_state(self, experts, hf_experts):
+        gate_up_proj_weights = []
+        down_proj_weights = []
+        for mg_expert_id, hf_expert_id in self._build_expert_parallel_mapping().items():
+            del hf_expert_id
+            gate_up_proj_weight, down_proj_weight = self.get_aggregation_mlp_state(experts, expert_id=mg_expert_id)
+            gate_up_proj_weights.append(gate_up_proj_weight)
+            down_proj_weights.append(down_proj_weight)
+
+        self.copy(torch.stack(gate_up_proj_weights), hf_experts.gate_up_proj, param_type=ParamType.MOE_GATE_UP)
+        self.copy(torch.stack(down_proj_weights), hf_experts.down_proj, param_type=ParamType.AGGREGATION_MOE_ROW)
+
+    def set_aggregation_moe_layer_state(self, moe, hf_moe):
+        self.copy(moe.router.weight, hf_moe.gate.weight)
+        if moe.router.enable_expert_bias:
+            self.copy(moe.router.expert_bias, hf_moe.gate.e_score_correction_bias)
+
+        if self.args.moe_grouped_gemm:
+            if self.args.moe_use_legacy_grouped_gemm:
+                raise NotImplementedError("Currently only TE GroupGEMM is implemented.")
+            self.set_group_aggregation_mlp_state(moe.experts, hf_moe.experts)
+        else:
+            self.set_sequential_aggregation_mlp_state(moe.experts, hf_moe.experts)
+
+        if moe.shared_experts is not None:
+            if moe.shared_experts.use_shared_expert_gate:
+                self.copy(moe.shared_experts.gate_weight, hf_moe.shared_expert_gate.weight)
+
+            try:
+                hf_shared_expert = hf_moe.shared_experts
+            except AttributeError:
+                hf_shared_expert = hf_moe.shared_expert
+            self.set_mlp_state(moe.shared_experts, hf_shared_expert)
 
 
     def sync_params(self, mg_model = None, hf_model = None):
@@ -41,13 +142,26 @@ class MG2HFSynchronizer(_MG2HFSynchronizer):
             hf_model = self._hfmodel
 
         if mg_model.pre_process:
-            self.set_preprocess_state(mg_model=mg_model, hf_model=hf_model)
-        
+            self.copy(
+                mg_model.embedding.word_embeddings.weight,
+                hf_model.model.language_model.embed_tokens.weight,
+                param_type=ParamType.COLUMN
+            )
+            
         if mg_model.post_process:
-            self.set_postprocess_state(mg_model=mg_model, hf_model=hf_model, is_mamba=True)
+            self.copy(
+                mg_model.decoder.final_norm.weight,
+                hf_model.model.language_model.norm.weight,
+            )
+
+            if mg_model.share_embeddings_and_output_weights:
+                output_layer_weight = mg_model.shared_embedding_or_output_weight()
+            else:
+                output_layer_weight = mg_model.output_layer.weight
+            self.copy(output_layer_weight, hf_model.lm_head.weight, param_type=ParamType.COLUMN)
 
             # mtp layer
-            self.set_moe_layer_state(mg_model.mtp.layers[0].transformer_layer.mlp, hf_model.mtp.layers[0].mlp)
+            self.set_aggregation_moe_layer_state(mg_model.mtp.layers[0].transformer_layer.mlp, hf_model.mtp.layers[0].mlp)
             self.copy(mg_model.mtp.layers[0].transformer_layer.pre_mlp_layernorm.weight, hf_model.mtp.layers[0].post_attention_layernorm.weight)
             self.set_gated_selfattn_state(mg_model.mtp.layers[0].transformer_layer.self_attention, hf_model.mtp.layers[0].self_attn)
             self.copy(mg_model.mtp.layers[0].transformer_layer.self_attention.linear_qgkv.layer_norm_weight, hf_model.mtp.layers[0].input_layernorm.weight)
@@ -74,7 +188,7 @@ class MG2HFSynchronizer(_MG2HFSynchronizer):
                 logging.info(f"Converting layer {hf_layer_id}")
 
             layer = mg_model.decoder.layers[mg_layer_id]
-            hf_layer = hf_model.model.layers[hf_layer_id]
+            hf_layer = hf_model.model.language_model.layers[hf_layer_id]
 
             if self.layout[global_mg_layer_id] == 'M':
                 # Mamba layer
@@ -82,7 +196,7 @@ class MG2HFSynchronizer(_MG2HFSynchronizer):
                 self.copy(layer.mixer.in_proj.layer_norm_weight, hf_layer.input_layernorm.weight)
             elif self.layout[global_mg_layer_id] == '-':
                 # transformer_layer of MLP
-                self.set_moe_layer_state(layer.mlp, hf_layer.mlp)
+                self.set_aggregation_moe_layer_state(layer.mlp, hf_layer.mlp)
                 self.copy(layer.pre_mlp_layernorm.weight, hf_layer.post_attention_layernorm.weight)
             elif self.layout[global_mg_layer_id] == '*':
                 # transformer_layer of Attention
@@ -111,24 +225,32 @@ class MG2HFSynchronizer(_MG2HFSynchronizer):
             split_size_list,
             dim=0
         )
-        in_proj_qkvz_weight = torch.cat([
-            q.reshape(Nk // self.tp_size, Dk, -1), 
-            k.reshape(Nk // self.tp_size, Dk, -1), 
-            v.reshape(Nk // self.tp_size, Dv * Nv // Nk, -1), 
-            z.reshape(Nk // self.tp_size, Dv * Nv // Nk, -1), 
-        ], dim=1)
-        self.copy(in_proj_qkvz_weight, hf_mixer.in_proj_qkvz.weight, param_type=ParamType.QKV_W)
+        q_proj_weight = q.reshape(Nk // self.tp_size, Dk, -1)
+        k_proj_weight = k.reshape(Nk // self.tp_size, Dk, -1)
+        v_proj_weight = v.reshape(Nk // self.tp_size, Dv * Nv // Nk, -1)
+        z_proj_weight = z.reshape(Nk // self.tp_size, Dv * Nv // Nk, -1)
+        b_proj_weight = b.reshape(Nk // self.tp_size, Nv // Nk, -1)
+        a_proj_weight = a.reshape(Nk // self.tp_size, Nv // Nk, -1)
 
-        in_proj_ba_weight = torch.cat([
-            b.reshape(Nk // self.tp_size, Nv // Nk, -1), 
-            a.reshape(Nk // self.tp_size, Nv // Nk, -1), 
-        ], dim=1)
-        self.copy(in_proj_ba_weight, hf_mixer.in_proj_ba.weight, param_type=ParamType.QKV_W)
+        self.copy(
+            torch.cat(
+                [
+                    q_proj_weight.flatten(0, 1),
+                    k_proj_weight.flatten(0, 1),
+                    v_proj_weight.flatten(0, 1),
+                ],
+                dim=0,
+            ),
+            hf_mixer.in_proj_qkv.weight,
+            param_type=ParamType.UNIQUE,
+        )
+        self.copy(z_proj_weight, hf_mixer.in_proj_z.weight, param_type=ParamType.QKV_W)
+        self.copy(b_proj_weight, hf_mixer.in_proj_b.weight, param_type=ParamType.QKV_W)
+        self.copy(a_proj_weight, hf_mixer.in_proj_a.weight, param_type=ParamType.QKV_W)
 
         self.copy(mixer.dt_bias, hf_mixer.dt_bias, param_type=ParamType.COLUMN)
         self.copy(mixer.A_log, hf_mixer.A_log, param_type=ParamType.COLUMN)
 
-        # TODO: support TP > 1 if needed
         split_size_list = [
             Nv * Dv, 
             Nk * Dk, 

@@ -26,6 +26,7 @@ from megatron_patch.model.qwen3_next.mamba_layer import MambaLayer, MambaLayerSu
 from megatron_patch.model.qwen3_next.mamba_mtp import MultiTokenPredictionLayer, MultiTokenPredictionLayerSubmodules
 from megatron_patch.model.qwen3_next.mamba_mtp import MultiTokenPredictionBlockSubmodules
 from megatron.core.models.backends import BackendSpecProvider, LocalSpecProvider
+from megatron.core.transformer.moe.experts import TEGroupedMLP
 from megatron.core.transformer.moe.moe_layer import MoELayer, MoESubmodules
 from megatron.core.transformer.moe.shared_experts import SharedExpertMLP
 
@@ -39,11 +40,50 @@ except ImportError:
 
 from megatron_patch.model.qwen3_next.gated_deltanet import GatedDeltaNetMixer
 
+
+def _module_spec_with_params(spec_or_module, **extra_params):
+    if isinstance(spec_or_module, ModuleSpec):
+        return ModuleSpec(
+            module=spec_or_module.module,
+            params={**spec_or_module.params, **extra_params},
+            submodules=spec_or_module.submodules,
+            metainfo=spec_or_module.metainfo,
+        )
+    return ModuleSpec(module=spec_or_module, params=extra_params)
+
+
+def _maybe_enable_fake_int4_for_te_grouped_experts(
+    expert_module,
+    expert_submodule,
+    moe_expert_use_fake_int4_quantization: bool,
+    moe_expert_fake_int4_quantization_group_size: int,
+):
+    if not moe_expert_use_fake_int4_quantization:
+        return expert_submodule
+    if expert_module is not TEGroupedMLP or expert_submodule is None:
+        return expert_submodule
+    if moe_expert_fake_int4_quantization_group_size <= 0:
+        raise ValueError(
+            "moe_expert_fake_int4_quantization_group_size must be > 0 when fake int4 quantization is enabled."
+        )
+
+    fake_int4_params = {
+        "use_fake_int4_quantization": True,
+        "use_fake_int4_quantization_group_size": moe_expert_fake_int4_quantization_group_size,
+    }
+    return MLPSubmodules(
+        linear_fc1=_module_spec_with_params(expert_submodule.linear_fc1, **fake_int4_params),
+        activation_func=expert_submodule.activation_func,
+        linear_fc2=_module_spec_with_params(expert_submodule.linear_fc2, **fake_int4_params),
+    )
+
 def get_moe_module_spec(
     use_te: Optional[bool] = True,
     num_experts: Optional[int] = None,
     moe_grouped_gemm: Optional[bool] = False,
     moe_use_legacy_grouped_gemm: Optional[bool] = False,
+    moe_expert_use_fake_int4_quantization: bool = False,
+    moe_expert_fake_int4_quantization_group_size: int = 0,
 ) -> ModuleSpec:
     """Helper function to get module spec for MoE"""
     if use_te is not None and use_te:
@@ -55,6 +95,8 @@ def get_moe_module_spec(
         num_experts=num_experts,
         moe_grouped_gemm=moe_grouped_gemm,
         moe_use_legacy_grouped_gemm=moe_use_legacy_grouped_gemm,
+        moe_expert_use_fake_int4_quantization=moe_expert_use_fake_int4_quantization,
+        moe_expert_fake_int4_quantization_group_size=moe_expert_fake_int4_quantization_group_size,
     )
 
 
@@ -64,6 +106,8 @@ def get_moe_module_spec_for_backend(
     moe_grouped_gemm: Optional[bool] = False,
     moe_use_legacy_grouped_gemm: Optional[bool] = False,
     use_te_activation_func: bool = False,
+    moe_expert_use_fake_int4_quantization: bool = False,
+    moe_expert_fake_int4_quantization_group_size: int = 0,
 ) -> ModuleSpec:
     """Helper function to get module spec for MoE"""
     assert num_experts is not None
@@ -82,6 +126,12 @@ def get_moe_module_spec_for_backend(
     )
     if expert_submodule is not None:
         expert_submodule.activation_func = activation_func
+        expert_submodule = _maybe_enable_fake_int4_for_te_grouped_experts(
+            expert_module,
+            expert_submodule,
+            moe_expert_use_fake_int4_quantization,
+            moe_expert_fake_int4_quantization_group_size,
+        )
 
     experts = ModuleSpec(module=expert_module, submodules=expert_submodule)
 
@@ -124,6 +174,9 @@ def get_qwen3_mtp_block_spec(args, config):
             mlp=get_moe_module_spec(
                 num_experts=args.num_experts,
                 moe_grouped_gemm=args.moe_grouped_gemm,
+                ## mtp not use fake_int4_quantization
+                moe_expert_use_fake_int4_quantization=False,
+                moe_expert_fake_int4_quantization_group_size=0,
             ),
             mlp_bda=get_bias_dropout_add,
         ),
@@ -157,7 +210,7 @@ def get_qwen3_mtp_block_spec(args, config):
     return mtp_block_spec
 
 
-def get_qwen3_next_layer_spec(args):
+def get_qwen3_next_layer_spec(args, config):
     return ModuleSpec(
         module=MambaStack,
         submodules=MambaStackSubmodules(
@@ -203,6 +256,12 @@ def get_qwen3_next_layer_spec(args):
                     mlp=get_moe_module_spec(
                         num_experts=args.num_experts,
                         moe_grouped_gemm=args.moe_grouped_gemm,
+                        moe_expert_use_fake_int4_quantization=getattr(
+                            config, "moe_expert_use_fake_int4_quantization", False
+                        ),
+                        moe_expert_fake_int4_quantization_group_size=getattr(
+                            config, "moe_expert_fake_int4_quantization_group_size", 0
+                        ),
                     ),
                     mlp_bda=get_bias_dropout_add
                 ),

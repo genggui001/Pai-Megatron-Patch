@@ -74,6 +74,10 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         if "self_attention.linear_qgkv.weight" in name:
             print(f"Disabling parameter: {name}")
             param.requires_grad = False
+    
+    for name, m in model.named_modules():
+        if getattr(m, "use_fake_int4_quantization", False):
+            print(f"{name} is using fake int4 quantization.")
 
     #     # disable the expert parameters if the expert index is divisible by 4
     #     expert_idx = re.findall(r"\.experts\..+\.weight([0-9]+)$", name)

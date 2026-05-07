@@ -81,7 +81,25 @@ class BaseSynchronizer(ABC):
             automodel_cls = getattr(transformers, self.args.auto_model)
             self._hfmodel = automodel_cls.from_config(config, trust_remote_code=True, torch_dtype=config.torch_dtype)
 
+        self._untie_output_embeddings_if_needed(config)
+
         self.build_hf_mapping()
+
+    def _untie_output_embeddings_if_needed(self, config):
+        if not hasattr(self._hfmodel, "lm_head"):
+            return
+        input_embeddings = self._hfmodel.get_input_embeddings()
+        if input_embeddings is None or not hasattr(input_embeddings, "weight"):
+            return
+        share_embeddings = getattr(
+            self._mgmodel,
+            "share_embeddings_and_output_weights",
+            getattr(config, "tie_word_embeddings", True),
+        )
+        if share_embeddings:
+            return
+        if input_embeddings.weight is self._hfmodel.lm_head.weight:
+            self._hfmodel.lm_head.weight = torch.nn.Parameter(self._hfmodel.lm_head.weight.detach().clone())
 
     def build_hf_mapping(self):
         # NOTE: two or more keys may point to the same tensor and we need to deduplicate

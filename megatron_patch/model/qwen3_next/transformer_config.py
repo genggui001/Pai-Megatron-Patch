@@ -27,4 +27,7 @@ class Qwen3NextTransformerConfig(TransformerConfig):
 
     mtp_steps: Optional[int] = None
 
+    moe_expert_use_fake_int4_quantization: bool = False
+    moe_expert_fake_int4_quantization_group_size: int = 0
+
 

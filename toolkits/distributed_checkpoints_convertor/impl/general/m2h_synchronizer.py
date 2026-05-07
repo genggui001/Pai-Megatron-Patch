@@ -74,6 +74,9 @@ class MG2HFSynchronizer(BaseSynchronizer):
         self._local_params[param_id] = src_tensor
         self._merge_type[param_id] = param_type.value
 
+    def get_export_state_dict(self):
+        return self._hfmodel.state_dict()
+
     def set_preprocess_state(self, mg_model, hf_model):
         '''Set embedding params.'''
         self.copy(
@@ -349,12 +352,13 @@ class MG2HFSynchronizer(BaseSynchronizer):
             self.copy(layer.mlp.linear_fc1.layer_norm_weight, hf_layer.post_attention_layernorm.weight)
 
     def check_and_save(self, output_dir):
+        export_state_dict = self.get_export_state_dict()
         sharded_info = split_torch_state_dict_into_shards(
-            self._hfmodel.state_dict(),
+            export_state_dict,
             max_shard_size=self.max_shard_size
         )
 
-        global_shape = {self._hf_params_key_to_id[k]: v.shape for k, v in self._hfmodel.state_dict().items()}
+        global_shape = {self._hf_params_key_to_id[k]: v.shape for k, v in export_state_dict.items()}
 
         # select local bucket(s) for each rank
         n_savers = self.num_savers
@@ -639,6 +643,17 @@ class MG2HFSynchronizer(BaseSynchronizer):
             ranks = self._rank_mapping.index_select(0, global_ranks) # (N, 6)
             # NOTE: for most cases, data will be from the same pp_rank, filter data from smallest pp_rank to fix tie-embedding
             tensor_dict = {k: v for k, v in tensor_dict.items() if self._rank_mapping[k, 1] == ranks[:, 1].min()}
+            if not is_expert:
+                global_ranks = torch.tensor(list(tensor_dict.keys()), dtype=torch.long, device=self.device)
+                ranks = self._rank_mapping.index_select(0, global_ranks)
+                replica_mins = {rank_group: ranks[:, rank_group].min() for rank_group in (2, 3, 4, 5)}
+                tensor_dict = {
+                    k: v
+                    for k, v in tensor_dict.items()
+                    if all(self._rank_mapping[k, rank_group] == min_rank for rank_group, min_rank in replica_mins.items())
+                }
+                global_ranks = torch.tensor(list(tensor_dict.keys()), dtype=torch.long, device=self.device)
+                ranks = self._rank_mapping.index_select(0, global_ranks)
             if self.debug:
                 if is_expert and ranks[:, 5].any():
                     raise ParamMergeError("Unexpected expert parameter data from non-zero expert dp rank")
@@ -685,6 +700,6 @@ class MG2HFSynchronizer(BaseSynchronizer):
             ParamType.QKV_W: partial(merge_qkv, False),
             ParamType.QKV_B: partial(merge_qkv, True),
             ParamType.UNIQUE: no_merge_func,
-            ParamType.QGKV_W: partial(merge_qgkv, False)
+            ParamType.QGKV_W: partial(merge_qgkv, False),
         }
         return merge_func_mapping[merge_type](tensor_dict)
