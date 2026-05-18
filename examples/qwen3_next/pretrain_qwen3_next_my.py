@@ -76,8 +76,9 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
             param.requires_grad = False
     
     for name, m in model.named_modules():
-        if getattr(m, "use_fake_int4_quantization", False):
-            print(f"{name} is using fake int4 quantization.")
+        fake_quantization_type = getattr(m, "fake_quantization_type", None)
+        if fake_quantization_type is not None:
+            print(f"{name} is using {fake_quantization_type}.")
 
     #     # disable the expert parameters if the expert index is divisible by 4
     #     expert_idx = re.findall(r"\.experts\..+\.weight([0-9]+)$", name)

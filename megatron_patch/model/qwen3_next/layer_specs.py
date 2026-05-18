@@ -52,29 +52,51 @@ def _module_spec_with_params(spec_or_module, **extra_params):
     return ModuleSpec(module=spec_or_module, params=extra_params)
 
 
-def _maybe_enable_fake_int4_for_te_grouped_experts(
+def _resolve_moe_expert_fake_quantization(
+    moe_expert_fake_type: Optional[str],
+    moe_expert_fake_group_size: int,
+):
+    if moe_expert_fake_type is None:
+        if moe_expert_fake_group_size > 0:
+            raise ValueError("moe_expert_fake_group_size requires moe_expert_fake_type to be set.")
+        return None, 0
+
+    if moe_expert_fake_group_size <= 0:
+        raise ValueError(
+            "moe_expert_fake_group_size must be > 0 when fake quantization is enabled."
+        )
+
+    return moe_expert_fake_type, moe_expert_fake_group_size
+
+
+def _maybe_enable_fake_quantization_for_te_grouped_experts(
     expert_module,
     expert_submodule,
-    moe_expert_use_fake_int4_quantization: bool,
-    moe_expert_fake_int4_quantization_group_size: int,
+    moe_expert_fake_type: Optional[str],
+    moe_expert_fake_group_size: int,
 ):
-    if not moe_expert_use_fake_int4_quantization:
+    fake_type, fake_group_size = _resolve_moe_expert_fake_quantization(
+        moe_expert_fake_type,
+        moe_expert_fake_group_size,
+    )
+
+    if fake_type is None:
         return expert_submodule
     if expert_module is not TEGroupedMLP or expert_submodule is None:
         return expert_submodule
-    if moe_expert_fake_int4_quantization_group_size <= 0:
+    if fake_group_size <= 0:
         raise ValueError(
-            "moe_expert_fake_int4_quantization_group_size must be > 0 when fake int4 quantization is enabled."
+            "moe_expert_fake_group_size must be > 0 when fake quantization is enabled."
         )
 
-    fake_int4_params = {
-        "use_fake_int4_quantization": True,
-        "use_fake_int4_quantization_group_size": moe_expert_fake_int4_quantization_group_size,
+    fake_quant_params = {
+        "fake_type": fake_type,
+        "fake_group_size": fake_group_size,
     }
     return MLPSubmodules(
-        linear_fc1=_module_spec_with_params(expert_submodule.linear_fc1, **fake_int4_params),
+        linear_fc1=_module_spec_with_params(expert_submodule.linear_fc1, **fake_quant_params),
         activation_func=expert_submodule.activation_func,
-        linear_fc2=_module_spec_with_params(expert_submodule.linear_fc2, **fake_int4_params),
+        linear_fc2=_module_spec_with_params(expert_submodule.linear_fc2, **fake_quant_params),
     )
 
 def get_moe_module_spec(
@@ -82,8 +104,8 @@ def get_moe_module_spec(
     num_experts: Optional[int] = None,
     moe_grouped_gemm: Optional[bool] = False,
     moe_use_legacy_grouped_gemm: Optional[bool] = False,
-    moe_expert_use_fake_int4_quantization: bool = False,
-    moe_expert_fake_int4_quantization_group_size: int = 0,
+    moe_expert_fake_type: Optional[str] = None,
+    moe_expert_fake_group_size: int = 0,
 ) -> ModuleSpec:
     """Helper function to get module spec for MoE"""
     if use_te is not None and use_te:
@@ -95,8 +117,8 @@ def get_moe_module_spec(
         num_experts=num_experts,
         moe_grouped_gemm=moe_grouped_gemm,
         moe_use_legacy_grouped_gemm=moe_use_legacy_grouped_gemm,
-        moe_expert_use_fake_int4_quantization=moe_expert_use_fake_int4_quantization,
-        moe_expert_fake_int4_quantization_group_size=moe_expert_fake_int4_quantization_group_size,
+        moe_expert_fake_type=moe_expert_fake_type,
+        moe_expert_fake_group_size=moe_expert_fake_group_size,
     )
 
 
@@ -106,8 +128,8 @@ def get_moe_module_spec_for_backend(
     moe_grouped_gemm: Optional[bool] = False,
     moe_use_legacy_grouped_gemm: Optional[bool] = False,
     use_te_activation_func: bool = False,
-    moe_expert_use_fake_int4_quantization: bool = False,
-    moe_expert_fake_int4_quantization_group_size: int = 0,
+    moe_expert_fake_type: Optional[str] = None,
+    moe_expert_fake_group_size: int = 0,
 ) -> ModuleSpec:
     """Helper function to get module spec for MoE"""
     assert num_experts is not None
@@ -126,11 +148,11 @@ def get_moe_module_spec_for_backend(
     )
     if expert_submodule is not None:
         expert_submodule.activation_func = activation_func
-        expert_submodule = _maybe_enable_fake_int4_for_te_grouped_experts(
+        expert_submodule = _maybe_enable_fake_quantization_for_te_grouped_experts(
             expert_module,
             expert_submodule,
-            moe_expert_use_fake_int4_quantization,
-            moe_expert_fake_int4_quantization_group_size,
+            moe_expert_fake_type,
+            moe_expert_fake_group_size,
         )
 
     experts = ModuleSpec(module=expert_module, submodules=expert_submodule)
@@ -174,9 +196,8 @@ def get_qwen3_mtp_block_spec(args, config):
             mlp=get_moe_module_spec(
                 num_experts=args.num_experts,
                 moe_grouped_gemm=args.moe_grouped_gemm,
-                ## mtp not use fake_int4_quantization
-                moe_expert_use_fake_int4_quantization=False,
-                moe_expert_fake_int4_quantization_group_size=0,
+                moe_expert_fake_type=None,
+                moe_expert_fake_group_size=0,
             ),
             mlp_bda=get_bias_dropout_add,
         ),
@@ -256,11 +277,9 @@ def get_qwen3_next_layer_spec(args, config):
                     mlp=get_moe_module_spec(
                         num_experts=args.num_experts,
                         moe_grouped_gemm=args.moe_grouped_gemm,
-                        moe_expert_use_fake_int4_quantization=getattr(
-                            config, "moe_expert_use_fake_int4_quantization", False
-                        ),
-                        moe_expert_fake_int4_quantization_group_size=getattr(
-                            config, "moe_expert_fake_int4_quantization_group_size", 0
+                        moe_expert_fake_type=getattr(config, "moe_expert_fake_type", None),
+                        moe_expert_fake_group_size=getattr(
+                            config, "moe_expert_fake_group_size", 0
                         ),
                     ),
                     mlp_bda=get_bias_dropout_add

@@ -54,9 +54,8 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         config.num_k_heads = args.mamba_num_groups
         config.num_v_heads = args.mamba_num_heads
 
-        # moe_expert_use_fake_int4_quantization
-        config.moe_expert_use_fake_int4_quantization = args.moe_expert_use_fake_int4_quantization
-        config.moe_expert_fake_int4_quantization_group_size = args.moe_expert_fake_int4_quantization_group_size
+        config.moe_expert_fake_type = args.moe_expert_fake_type
+        config.moe_expert_fake_group_size = args.moe_expert_fake_group_size
 
     assert args.use_legacy_models is False, "Mamba only supported in Mcore!"
 
@@ -93,8 +92,9 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
     #         param.requires_grad = False
 
     for name, m in model.named_modules():
-        if getattr(m, "use_fake_int4_quantization", False):
-            print(f"student_model: {name} is using fake int4 quantization.")
+        fake_quantization_type = getattr(m, "fake_quantization_type", None)
+        if fake_quantization_type is not None:
+            print(f"student_model: {name} is using {fake_quantization_type}.")
 
     if args.enable_kl_distill:
         assert args.base_model_load is not None, "--base-model-load is required when KL distillation is enabled."
@@ -104,9 +104,9 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
             teacher_config.mtp_num_layers = None
             teacher_config.mtp_steps = None
 
-        # disable fake int4 quantization for teacher model, which may cause instability in KL distillation
-        teacher_config.moe_expert_use_fake_int4_quantization = False
-        teacher_config.moe_expert_fake_int4_quantization_group_size = 0
+        # disable fake quantization for teacher model, which may cause instability in KL distillation
+        teacher_config.moe_expert_fake_type = None
+        teacher_config.moe_expert_fake_group_size = 0
 
         teacher_model = MambaModel(
             config=teacher_config,
@@ -131,8 +131,9 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         )
 
         for name, m in teacher_model.named_modules():
-            if getattr(m, "use_fake_int4_quantization", False):
-                print(f"teacher_model: {name} is using fake int4 quantization.")
+            fake_quantization_type = getattr(m, "fake_quantization_type", None)
+            if fake_quantization_type is not None:
+                print(f"teacher_model: {name} is using {fake_quantization_type}.")
 
         load_teacher_checkpoint(
             teacher_model,

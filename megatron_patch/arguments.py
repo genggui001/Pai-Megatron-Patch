@@ -623,18 +623,20 @@ def get_patch_args(parser):
         ),
     )
     group.add_argument(
-        "--moe-expert-use-fake-int4-quantization",
-        action="store_true",
-        help="Enable fake int4 quantization for MoE experts.",
+        "--moe-expert-fake-type",
+        type=str,
+        default=None,
+        choices=["fake_int4", "int4", "fake_nvfp4", "nvfp4"],
+        help="Select fake quantization type for MoE experts.",
     )
     group.add_argument(
-        "--moe-expert-fake-int4-quantization-group-size",
+        "--moe-expert-fake-group-size",
         type=int,
         default=0,
         help=(
-            "Group size for fake int4 quantization of MoE experts. "
+            "Group size for fake quantization of MoE experts. "
             "Must be a positive integer and is only relevant if "
-            "--moe-expert-use-fake-int4-quantization is set."
+            "--moe-expert-fake-type is set."
         ),
     )
 

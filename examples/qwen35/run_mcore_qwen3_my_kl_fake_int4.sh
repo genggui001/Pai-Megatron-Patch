@@ -433,8 +433,8 @@ megatron_options="  \
         --base-model-ckpt-format torch_dist \
         --kl-loss-weight ${KL_LOSS_WEIGHT} \
         --kl-loss-temperature ${KL_LOSS_TEMPERATURE} \
-        --moe-expert-use-fake-int4-quantization \
-        --moe-expert-fake-int4-quantization-group-size 32
+        --moe-expert-fake-type fake_int4 \
+        --moe-expert-fake-group-size 32
         "
 
 run_cmd="torchrun $DISTRIBUTED_ARGS pretrain_qwen3_next_my.py
