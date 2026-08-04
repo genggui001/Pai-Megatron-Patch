@@ -4,11 +4,10 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 
+from fused_kl_loss import kl_ce_loss
 
-from megatron.core import tensor_parallel
 from megatron.core.parallel_state import (
     get_pipeline_model_parallel_world_size,
     get_tensor_model_parallel_group,
@@ -19,157 +18,6 @@ from megatron.core.pipeline_parallel.schedules import get_tensor_shapes
 from megatron.core.utils import get_attr_wrapped_model
 from megatron.training import get_args, print_rank_0
 from megatron.training.checkpointing import load_checkpoint
-
-from megatron_patch.model.qwen3_next.triton_grouped_kl import (
-    HAS_TRITON,
-    triton_grouped_kl,
-    triton_grouped_kl_tp,
-)
-
-class _AllReduce(torch.autograd.Function):
-    """All-reduce that preserves backward propagation."""
-
-    @staticmethod
-    def forward(ctx, op, group, tensor):
-        ctx.group, ctx.op = group, op
-        tensor = tensor.clone()
-        torch.distributed.all_reduce(tensor, op=op, group=group)
-        return tensor
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        return (None, None, _AllReduce.apply(ctx.op, ctx.group, grad_output))
-
-
-def all_reduce_autograd(
-    tensor: Tensor,
-    op: torch.distributed.ReduceOp = torch.distributed.ReduceOp.SUM,
-    group: torch.distributed.ProcessGroup = torch.distributed.group.WORLD,
-) -> Tensor:
-    """All-reduce helper for TP-aware logits KL."""
-
-    return _AllReduce.apply(op, group, tensor)
-
-
-class TensorParallelLogitsKLLoss(nn.Module):
-    """KL loss that matches ModelOpt's tensor-parallel math.
-
-    Convention used here:
-    - student/predictions = current finetuned model = Q
-    - teacher/targets = frozen base/reference model = P
-    - reverse=False => forward KL in the paper notation: KL(P || Q)
-    - reverse=True => reverse KL in the paper notation: KL(Q || P)
-    """
-
-    def __init__(self, model_config, reverse: bool = False):
-        super().__init__()
-        self._config = model_config
-        self._reverse = reverse
-
-    def _torch_forward(self, predictions: Tensor, targets: Tensor) -> Tensor:
-        targets = targets.detach()
-
-        # In this file, predictions are student logits and targets are teacher logits.
-        output_teacher = targets.float()
-        output_student = predictions.float()
-
-        if self._config.tensor_model_parallel_size > 1:
-            teacher_logits_max, _ = torch.max(output_teacher, dim=-1)
-            torch.distributed.all_reduce(
-                teacher_logits_max,
-                op=torch.distributed.ReduceOp.MAX,
-                group=get_tensor_model_parallel_group(),
-            )
-            output_teacher.sub_(teacher_logits_max.unsqueeze(dim=-1))
-
-            denom_teacher = torch.sum(torch.exp(output_teacher), dim=-1)
-            torch.distributed.all_reduce(denom_teacher, group=get_tensor_model_parallel_group())
-
-            student_logits_max, _ = torch.max(output_student, dim=-1)
-            torch.distributed.all_reduce(
-                student_logits_max,
-                op=torch.distributed.ReduceOp.MAX,
-                group=get_tensor_model_parallel_group(),
-            )
-            output_student.sub_(student_logits_max.unsqueeze(dim=-1).detach())
-
-            denom_student = torch.sum(torch.exp(output_student), dim=-1)
-            denom_student = all_reduce_autograd(
-                denom_student, group=get_tensor_model_parallel_group()
-            )
-        else:
-            teacher_logits_max, _ = torch.max(output_teacher, dim=-1)
-            output_teacher.sub_(teacher_logits_max.unsqueeze(dim=-1))
-
-            denom_teacher = torch.sum(torch.exp(output_teacher), dim=-1)
-
-            student_logits_max, _ = torch.max(output_student, dim=-1)
-            output_student.sub_(student_logits_max.unsqueeze(dim=-1).detach())
-
-            denom_student = torch.sum(torch.exp(output_student), dim=-1)
-
-        # Convert centered logits to log-probabilities in place to avoid allocating
-        # extra full-size student_log_prob / teacher_log_prob tensors.
-        denom_teacher.log_()
-        output_teacher.sub_(denom_teacher.unsqueeze(dim=-1))
-
-        denom_student.log_()
-        output_student.sub_(denom_student.unsqueeze(dim=-1))
-
-        if self._reverse:
-            # torch.nn.functional.kl_div(input, target, log_target=True)
-            # computes KL(target || input), so this branch is KL(student || teacher).
-            loss = torch.sum(
-                F.kl_div(
-                    output_teacher,
-                    output_student,
-                    reduction="none",
-                    log_target=True,
-                ),
-                dim=-1,
-            )
-        else:
-            # Default branch: KL(teacher || student), which is the "forward KL"
-            # under the paper's notation where P=teacher and Q=student.
-            loss = torch.sum(
-                F.kl_div(
-                    output_student,
-                    output_teacher,
-                    reduction="none",
-                    log_target=True,
-                ),
-                dim=-1,
-            )
-        return loss
-
-    def forward(self, predictions: Tensor, targets: Tensor):
-        tp_group = (
-            get_tensor_model_parallel_group()
-            if self._config.tensor_model_parallel_size > 1
-            else None
-        )
-
-        if HAS_TRITON and predictions.is_cuda and targets.is_cuda:
-            if tp_group is None:
-                loss = triton_grouped_kl(
-                    predictions,
-                    targets.detach(),
-                    reverse=self._reverse,
-                )
-            else:
-                loss = triton_grouped_kl_tp(
-                    predictions,
-                    targets.detach(),
-                    reverse=self._reverse,
-                    tp_group=tp_group,
-                )
-        else:
-            loss = self._torch_forward(predictions, targets)
-
-        if tp_group is not None:
-            loss = tensor_parallel.reduce_from_tensor_model_parallel_region(loss)
-
-        return loss.transpose(0, 1).contiguous()
 
 
 def load_teacher_checkpoint(
@@ -211,16 +59,10 @@ class KLDistillationWrapper(nn.Module):
         self.teacher_model = teacher_model
         self.kl_loss_weight = kl_loss_weight
         self.kl_reverse = kl_reverse
-        self.kl_loss = TensorParallelLogitsKLLoss(
-            get_attr_wrapped_model(student_model, "config", allow_none=False),
-            reverse=kl_reverse,
-        )
-        self._tensor_split_idx = get_attr_wrapped_model(
-            student_model, "config", allow_none=False
-        ).hidden_size
+        self._config = get_attr_wrapped_model(student_model, "config", allow_none=False)
+        self._tensor_split_idx = self._config.hidden_size
         self._freeze_teacher_model()
-        impl_name = "triton_grouped_kl_tp" if HAS_TRITON else "native"
-        print_rank_0(f"KLDistillationWrapper using logits KL path ({impl_name}).")
+        print_rank_0("KLDistillationWrapper using fused_kl_loss.")
 
     def __getattr__(self, name: str):
         try:
@@ -329,30 +171,48 @@ class KLDistillationWrapper(nn.Module):
 
         return adjust_tensor_shapes
 
-    def _forward_last_stage_with_native_kl(self, *args, **kwargs):
-        assert self.kl_loss is not None
-
-        teacher_kwargs = dict(kwargs)
+    def _forward_last_stage_with_fused_kl(self, *args, **kwargs):
         student_kwargs = dict(kwargs)
+        teacher_kwargs = dict(kwargs)
 
-        student_kwargs["return_raw_logits"] = True
-        student_loss, student_logits = self.student_model(*args, **student_kwargs)
+        student_kwargs["return_hidden_states"] = True
+        student_h, student_weight = self.student_model(*args, **student_kwargs)
 
         teacher_kwargs["labels"] = None
-        teacher_kwargs["return_raw_logits"] = True
+        teacher_kwargs["return_hidden_states"] = True
         with torch.no_grad():
             self.teacher_model.eval()
-            teacher_logits = self.teacher_model(*args, **teacher_kwargs)
-            teacher_logits = teacher_logits.detach()
+            teacher_h, teacher_weight = self.teacher_model(*args, **teacher_kwargs)
+            teacher_h = teacher_h.detach()
+            teacher_weight = teacher_weight.detach()
 
-        ce_loss = student_loss
-        kl_loss = self.kl_loss(student_logits, teacher_logits)
-        all_loss = ce_loss + self.kl_loss_weight * kl_loss
+        labels = kwargs["labels"]
+        S, B, H = student_h.shape
+        student_h_2d = student_h.reshape(-1, H).contiguous()
+        teacher_h_2d = teacher_h.reshape(-1, H).contiguous()
+        labels_1d = labels.reshape(-1).contiguous()
+
+        tp_group = (
+            get_tensor_model_parallel_group()
+            if self._config.tensor_model_parallel_size > 1
+            else None
+        )
+        kl_weight_t = torch.tensor(
+            [self.kl_loss_weight], device=student_h.device, dtype=torch.float32,
+        )
+
+        result = kl_ce_loss(
+            student_h_2d, teacher_h_2d,
+            student_weight, teacher_weight,
+            labels_1d, kl_weight_t,
+            kl_reverse=self.kl_reverse,
+            tp_group=tp_group,
+        )
 
         return {
-            "all_loss": all_loss,
-            "ce_loss": ce_loss,
-            "kl_loss": kl_loss,
+            "all_loss": result.loss.reshape(S, B),
+            "ce_loss": result.ce_loss.reshape(S, B),
+            "kl_loss": result.kl_loss.reshape(S, B),
             "kl_loss_weight": self.kl_loss_weight,
         }
 
@@ -372,4 +232,4 @@ class KLDistillationWrapper(nn.Module):
             student_output = self.student_model(*args, **student_kwargs)
             return torch.cat([student_output, teacher_output], dim=-1)
 
-        return self._forward_last_stage_with_native_kl(*args, **kwargs)
+        return self._forward_last_stage_with_fused_kl(*args, **kwargs)

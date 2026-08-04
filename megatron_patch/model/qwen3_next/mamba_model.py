@@ -5,14 +5,7 @@ from typing import Literal, Optional, Dict
 import torch
 from torch import Tensor
 
-try:
-    from cut_cross_entropy import VocabParallelOptions, linear_cross_entropy
-    from cut_cross_entropy.constants import IGNORE_INDEX as CCE_IGNORE_INDEX
-except ImportError:
-    print("cut_cross_entropy is not available.")
-    VocabParallelOptions = None
-    linear_cross_entropy = None
-    CCE_IGNORE_INDEX = None
+from fused_kl_loss import cross_entropy_loss as fused_cross_entropy_loss
 
 
 from megatron.core import tensor_parallel, parallel_state, mpu
@@ -207,26 +200,6 @@ class MambaModel(LanguageModule):
             return self.shared_embedding_or_output_weight()
         return self.output_layer.weight
 
-    def _get_vocab_parallel_options(
-        self,
-        classifier_weight: Tensor,
-    ):
-        vocab_parallel_options = None
-        if classifier_weight.size(0) != self.vocab_size:
-            if VocabParallelOptions is None:
-                raise RuntimeError("cut_cross_entropy vocab parallel support is not available")
-            classifier_tp_group = getattr(self.output_layer, "tp_group", self.pg_collection.tp)
-            # When sequence parallel is enabled we explicitly gather hidden states before
-            # calling cut_cross_entropy. The gather op already reduce-scatters dH in
-            # backward, so vocab-parallel loss must not perform an additional TP dH reduce.
-            reduce_e_grad = not self.output_layer.sequence_parallel
-            vocab_parallel_options = VocabParallelOptions.from_vocab(
-                self.vocab_size,
-                group=classifier_tp_group,
-                reduce_e_grad=reduce_e_grad,
-            )
-        return vocab_parallel_options
-
     def prepare_language_model_loss_inputs(
         self,
         hidden_states: Tensor,
@@ -235,53 +208,40 @@ class MambaModel(LanguageModule):
         if self.output_layer.sequence_parallel:
             hidden_states = tensor_parallel.gather_from_sequence_parallel_region(
                 hidden_states,
-                tensor_parallel_output_grad=True,
+                tensor_parallel_output_grad=False,
                 group=self.pg_collection.tp,
             )
 
         classifier_weight = self._get_output_classifier_weight(output_weight)
-        vocab_parallel_options = self._get_vocab_parallel_options(classifier_weight)
-        return hidden_states, classifier_weight, vocab_parallel_options
+        tp_group = None
+        if classifier_weight.size(0) != self.vocab_size:
+            tp_group = getattr(self.output_layer, "tp_group", self.pg_collection.tp)
+        return hidden_states, classifier_weight, tp_group
 
-    def _compute_language_model_loss_with_cut_cross_entropy(
+    def _compute_fused_ce_loss(
         self,
         hidden_states: Tensor,
         labels: Tensor,
-        output_weight: Optional[Tensor],
-        loss_mask: Optional[Tensor] = None,
+        output_weight: Optional[Tensor] = None,
     ) -> Tensor:
-        """Computes per-token language-model loss without materializing logits."""
-        if linear_cross_entropy is None:
-            raise RuntimeError("cut_cross_entropy is not available")
+        """Computes per-token CE loss without materializing logits.
 
-        hidden_states, classifier_weight, vocab_parallel_options = (
+        Returns a 1-D [N] tensor (N = S*B) to avoid shape-mismatch broadcasting
+        with loss_mask which may follow a different dim ordering convention.
+        """
+        hidden_states, classifier_weight, tp_group = (
             self.prepare_language_model_loss_inputs(hidden_states, output_weight)
         )
 
-        cce_labels = labels.transpose(0, 1).contiguous()
-        if loss_mask is not None:
-            if CCE_IGNORE_INDEX is None:
-                raise RuntimeError("cut_cross_entropy ignore_index support is not available")
-            cce_labels = torch.where(
-                loss_mask.transpose(0, 1).contiguous().to(dtype=torch.bool),
-                cce_labels,
-                torch.full_like(cce_labels, CCE_IGNORE_INDEX),
-            )
-
-        linear_cross_entropy_kwargs = {
-            "reduction": "none",
-            "vocab_parallel_options": vocab_parallel_options,
-            "impl": "cce_exact",
-        }
-
-        loss = linear_cross_entropy(
-            hidden_states,
+        S, B, H = hidden_states.shape
+        loss = fused_cross_entropy_loss(
+            hidden_states.reshape(-1, H).contiguous(),
             classifier_weight,
-            cce_labels,
-            **linear_cross_entropy_kwargs,
+            labels.reshape(-1).contiguous(),
+            tp_group=tp_group,
         )
 
-        return loss.transpose(0, 1).contiguous()
+        return loss.reshape(-1)
 
     def forward(
         self,
@@ -297,6 +257,7 @@ class MambaModel(LanguageModule):
         inference_params: Optional[BaseInferenceContext] = None,
         loss_mask: Optional[Tensor] = None,
         return_raw_logits: bool = False,
+        return_hidden_states: bool = False,
     ) -> Tensor:
         """Forward function of the Mamba model. This function passes the input tensors
         through the embedding layer, and then the decoder and finally into the post
@@ -377,8 +338,6 @@ class MambaModel(LanguageModule):
         if not self.post_process:
             return hidden_states
 
-        # print("loss_mask", loss_mask)
-
         if self.mtp_process and labels is not None:
             if self.config.mtp_steps is not None:
                 mtp_steps = self.config.mtp_steps
@@ -389,13 +348,11 @@ class MambaModel(LanguageModule):
             hidden_states_list = torch.chunk(hidden_states, 1 + mtp_steps, dim=0)
             hidden_states = hidden_states_list[0]
             if loss_mask is None:
-                # if loss_mask is not provided, use all ones as loss_mask
                 loss_mask = torch.ones_like(mtp_labels)
+
             for mtp_step_idx in range(mtp_steps):
-                # Calc loss for the current Multi-Token Prediction (MTP) layers.
                 mtp_labels, _ = roll_tensor(mtp_labels, shifts=-1, dims=-1, cp_group=self.cp_group)
-                
-                # roll the loss mask
+
                 new_loss_mask, _ = roll_tensor(
                     loss_mask, shifts=-1, dims=-1, cp_group=self.cp_group
                 )
@@ -414,25 +371,15 @@ class MambaModel(LanguageModule):
                         )
                     continue
 
-                if linear_cross_entropy is not None:
-                    mtp_loss = self._compute_language_model_loss_with_cut_cross_entropy(
-                        hidden_states_list[mtp_step_idx + 1],
-                        mtp_labels,
-                        output_weight,
-                        loss_mask=loss_mask,
-                    )
-                else:
-                    mtp_logits, _ = self.output_layer(
-                        hidden_states_list[mtp_step_idx + 1],
-                        weight=output_weight,
-                        runtime_gather_output=runtime_gather_output,
-                    )
-                    mtp_loss = self.compute_language_model_loss(mtp_labels, mtp_logits)
-                mtp_loss = torch.where(loss_mask.bool(), mtp_loss, torch.zeros_like(mtp_loss))
-                # print("MTP: mtp_loss", mtp_loss)
+                mtp_loss = self._compute_fused_ce_loss(
+                    hidden_states_list[mtp_step_idx + 1],
+                    mtp_labels,
+                    output_weight,
+                )
+
+                mtp_loss = mtp_loss * loss_mask.reshape(-1)
+
                 if self.training:
-                    # TODO(shifangx): remove the use of parallel_state here
-                    # after moving loss logging to loss_func in pretrain_gpt.py
                     MTPLossLoggingHelper.save_loss_to_tracker(
                         torch.sum(mtp_loss) / num_tokens,
                         mtp_step_idx,
@@ -441,23 +388,31 @@ class MambaModel(LanguageModule):
                             with_context_parallel=True
                         ),
                     )
+
                 mtp_loss_scale = self.config.mtp_loss_scaling_factor / mtp_steps
                 if self.config.calculate_per_token_loss:
-                    hidden_states = MTPLossAutoScaler.apply(
-                        hidden_states, mtp_loss_scale * mtp_loss
-                    )
+                    _scaled_loss = mtp_loss_scale * mtp_loss
                 else:
-                    hidden_states = MTPLossAutoScaler.apply(
-                        hidden_states, mtp_loss_scale * mtp_loss / num_tokens
-                    )
+                    _scaled_loss = mtp_loss_scale * mtp_loss / num_tokens
+
+                hidden_states = MTPLossAutoScaler.apply(hidden_states, _scaled_loss)
+                del _scaled_loss
+
+        if self.mtp_process and labels is None:
+            mtp_steps = self.config.mtp_steps if self.config.mtp_steps is not None else self.config.mtp_num_layers
+            hidden_states = torch.chunk(hidden_states, 1 + mtp_steps, dim=0)[0]
 
         if in_inference_mode and inference_context.materialize_only_last_token_logits:
             hidden_states = hidden_states[-1, :, :].unsqueeze(0)
 
-        if labels is not None and linear_cross_entropy is not None and not return_raw_logits:
-            loss = self._compute_language_model_loss_with_cut_cross_entropy(
-                hidden_states, labels, output_weight
+        if return_hidden_states:
+            hidden_states, classifier_weight, _ = self.prepare_language_model_loss_inputs(
+                hidden_states, output_weight,
             )
+            return hidden_states, classifier_weight
+
+        if labels is not None and not return_raw_logits:
+            loss = self._compute_fused_ce_loss(hidden_states, labels, output_weight)
         else:
             logits, _ = self.output_layer(
                 hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
