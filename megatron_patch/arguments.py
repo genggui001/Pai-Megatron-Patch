@@ -639,5 +639,25 @@ def get_patch_args(parser):
             "--moe-expert-fake-type is set."
         ),
     )
+    group.add_argument(
+        "--moe-expert-fake-activation-type",
+        type=str,
+        default=None,
+        choices=["nvfp4", "fp8_e4m3"],
+        help="Fake activation quantization type for MoE expert FC1/FC2 inputs.",
+    )
+    group.add_argument(
+        "--moe-expert-fake-activation-group-size",
+        type=int,
+        default=16,
+        help="Group size for fake NVFP4 activation quantization (default: 16).",
+    )
+    group.add_argument(
+        "--attention-fake-kv-quantization-type",
+        type=str,
+        default=None,
+        choices=["fp8_e4m3"],
+        help="Fake quantization type for attention KV cache (key and value).",
+    )
 
     return parser

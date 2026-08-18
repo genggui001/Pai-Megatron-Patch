@@ -56,6 +56,9 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
 
         config.moe_expert_fake_type = args.moe_expert_fake_type
         config.moe_expert_fake_group_size = args.moe_expert_fake_group_size
+        config.moe_expert_fake_activation_type = args.moe_expert_fake_activation_type
+        config.moe_expert_fake_activation_group_size = args.moe_expert_fake_activation_group_size
+        config.attention_fake_kv_quantization_type = args.attention_fake_kv_quantization_type
 
     assert args.use_legacy_models is False, "Mamba only supported in Mcore!"
 
@@ -107,6 +110,8 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         # disable fake quantization for teacher model, which may cause instability in KL distillation
         teacher_config.moe_expert_fake_type = None
         teacher_config.moe_expert_fake_group_size = 0
+        teacher_config.moe_expert_fake_activation_type = None
+        teacher_config.attention_fake_kv_quantization_type = None
 
         teacher_model = MambaModel(
             config=teacher_config,
