@@ -84,15 +84,18 @@ class GatedSoftmaxAttention(Attention):
             pg_collection=pg_collection,
         )
 
-        self.fake_kv_quantization_type = getattr(config, 'attention_fake_kv_quantization_type', None)
-        if self.fake_kv_quantization_type == "fp8_e4m3":
+        self.fake_qkv_quantization_type = getattr(config, 'attention_fake_qkv_quantization_type', None)
+        if self.fake_qkv_quantization_type == "fp8_e4m3":
             from qdq import fake_fp8_e4m3_quantization_ste
-            self._fake_kv_ste = fake_fp8_e4m3_quantization_ste
+            self._fake_qkv_ste = fake_fp8_e4m3_quantization_ste
             self.register_buffer(
-                "_kv_key_amax_calibration", torch.zeros(1), persistent=False
+                "_qkv_query_amax_calibration", torch.zeros(1), persistent=False
             )
             self.register_buffer(
-                "_kv_value_amax_calibration", torch.zeros(1), persistent=False
+                "_qkv_key_amax_calibration", torch.zeros(1), persistent=False
+            )
+            self.register_buffer(
+                "_qkv_value_amax_calibration", torch.zeros(1), persistent=False
             )
 
         self.linear_qgkv = build_module(
@@ -444,33 +447,40 @@ class GatedSoftmaxAttention(Attention):
         nvtx_range_pop(suffix="rotary_pos_emb")
 
         # ==================================
-        # KV fake quantization (before core attention)
+        # QKV fake quantization (before core attention)
         # Scale synchronized across TP ranks for consistency with vLLM inference
         # scale = global_amax / FP8_E4M3_MAX, clamped to avoid zero
         # ==================================
-        if self.fake_kv_quantization_type is not None:
+        if self.fake_qkv_quantization_type is not None:
             _FP8_E4M3_MAX = torch.finfo(torch.float8_e4m3fn).max
             _TINY = torch.finfo(torch.float32).tiny
 
+            query_amax = query.detach().abs().amax().float()
             key_amax = key.detach().abs().amax().float()
             value_amax = value.detach().abs().amax().float()
             tp_group = self.pg_collection.tp
             if tp_group is not None:
+                torch.distributed.all_reduce(query_amax, op=torch.distributed.ReduceOp.MAX, group=tp_group)
                 torch.distributed.all_reduce(key_amax, op=torch.distributed.ReduceOp.MAX, group=tp_group)
                 torch.distributed.all_reduce(value_amax, op=torch.distributed.ReduceOp.MAX, group=tp_group)
 
             if not self.training:
-                self._kv_key_amax_calibration.fill_(
-                    max(self._kv_key_amax_calibration.item(), key_amax.item())
+                self._qkv_query_amax_calibration.fill_(
+                    max(self._qkv_query_amax_calibration.item(), query_amax.item())
                 )
-                self._kv_value_amax_calibration.fill_(
-                    max(self._kv_value_amax_calibration.item(), value_amax.item())
+                self._qkv_key_amax_calibration.fill_(
+                    max(self._qkv_key_amax_calibration.item(), key_amax.item())
+                )
+                self._qkv_value_amax_calibration.fill_(
+                    max(self._qkv_value_amax_calibration.item(), value_amax.item())
                 )
 
+            query_scale = (query_amax / _FP8_E4M3_MAX).clamp_min(_TINY)
             key_scale = (key_amax / _FP8_E4M3_MAX).clamp_min(_TINY)
             value_scale = (value_amax / _FP8_E4M3_MAX).clamp_min(_TINY)
-            key = self._fake_kv_ste(key, scale=key_scale)
-            value = self._fake_kv_ste(value, scale=value_scale)
+            query = self._fake_qkv_ste(query, scale=query_scale)
+            key = self._fake_qkv_ste(key, scale=key_scale)
+            value = self._fake_qkv_ste(value, scale=value_scale)
 
         # ==================================
         # core attention computation
@@ -540,30 +550,32 @@ class GatedSoftmaxAttention(Attention):
 
         return output, bias
 
-    def get_kv_calibration_scales(self) -> dict[str, float] | None:
-        """Return calibrated KV scales after eval, or None if not applicable."""
-        if self.fake_kv_quantization_type != "fp8_e4m3":
+    def get_qkv_calibration_scales(self) -> dict[str, float] | None:
+        """Return calibrated QKV scales after eval, or None if not applicable."""
+        if self.fake_qkv_quantization_type != "fp8_e4m3":
             return None
-        key_amax = self._kv_key_amax_calibration.item()
-        value_amax = self._kv_value_amax_calibration.item()
-        if key_amax == 0.0 and value_amax == 0.0:
+        query_amax = self._qkv_query_amax_calibration.item()
+        key_amax = self._qkv_key_amax_calibration.item()
+        value_amax = self._qkv_value_amax_calibration.item()
+        if query_amax == 0.0 and key_amax == 0.0 and value_amax == 0.0:
             return None
         _FP8_E4M3_MAX = torch.finfo(torch.float8_e4m3fn).max
         return {
+            "query_scale": query_amax / _FP8_E4M3_MAX,
             "key_scale": key_amax / _FP8_E4M3_MAX,
             "value_scale": value_amax / _FP8_E4M3_MAX,
         }
 
 
-def collect_kv_calibration_scales(model: torch.nn.Module) -> dict[str, float]:
-    """Collect calibrated KV FP8 scales from all GatedSoftmaxAttention layers.
+def collect_qkv_calibration_scales(model: torch.nn.Module) -> dict[str, float]:
+    """Collect calibrated QKV FP8 scales from all GatedSoftmaxAttention layers.
 
     Call this after running eval to get per-layer scales for vLLM inference.
     Distinguishes decoder attention layers from MTP attention layers by checking
     the module hierarchy.
 
     Returns:
-        Dict mapping "layer.{N}.k_scale" / "layer.{N}.v_scale" to float values,
+        Dict mapping "layer.{N}.{q,k,v}_scale" to float values,
         where N is the 0-indexed layer number. MTP layers use "mtp_layer.{N}" prefix.
     """
     from megatron_patch.model.qwen3_next.mamba_mtp import MultiTokenPredictionBlock
@@ -571,18 +583,16 @@ def collect_kv_calibration_scales(model: torch.nn.Module) -> dict[str, float]:
     scales = {}
     mtp_modules = set()
 
-    # First pass: identify all GatedSoftmaxAttention instances under MTP blocks
     for name, module in model.named_modules():
         if isinstance(module, MultiTokenPredictionBlock):
             for sub_name, sub_module in module.named_modules():
                 if isinstance(sub_module, GatedSoftmaxAttention):
                     mtp_modules.add(id(sub_module))
 
-    # Second pass: collect scales with proper naming
     mtp_idx = 0
     for module in model.modules():
         if isinstance(module, GatedSoftmaxAttention):
-            layer_scales = module.get_kv_calibration_scales()
+            layer_scales = module.get_qkv_calibration_scales()
             if layer_scales is not None:
                 if id(module) in mtp_modules:
                     prefix = f"mtp_layer.{mtp_idx}"
@@ -590,6 +600,7 @@ def collect_kv_calibration_scales(model: torch.nn.Module) -> dict[str, float]:
                 else:
                     layer_idx = module.layer_number - 1
                     prefix = f"layer.{layer_idx}"
+                scales[f"{prefix}.q_scale"] = layer_scales["query_scale"]
                 scales[f"{prefix}.k_scale"] = layer_scales["key_scale"]
                 scales[f"{prefix}.v_scale"] = layer_scales["value_scale"]
     return scales

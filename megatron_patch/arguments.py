@@ -653,11 +653,11 @@ def get_patch_args(parser):
         help="Group size for fake NVFP4 activation quantization (default: 16).",
     )
     group.add_argument(
-        "--attention-fake-kv-quantization-type",
+        "--attention-fake-qkv-quantization-type",
         type=str,
         default=None,
         choices=["fp8_e4m3"],
-        help="Fake quantization type for attention KV cache (key and value).",
+        help="Fake quantization type for attention QKV (query, key, and value).",
     )
 
     return parser

@@ -436,7 +436,7 @@ megatron_options="  \
         --moe-expert-fake-type fake_int4 \
         --moe-expert-fake-group-size 128 \
         --moe-expert-fake-activation-type fp8_e4m3
-        --attention-fake-kv-quantization-type fp8_e4m3
+        --attention-fake-qkv-quantization-type fp8_e4m3
         "
 
 run_cmd="torchrun $DISTRIBUTED_ARGS pretrain_qwen3_next_my.py

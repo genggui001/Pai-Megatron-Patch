@@ -29,7 +29,7 @@ torch._dynamo.config.cache_size_limit = 32
 from megatron_patch.model.qwen3_next.mamba_model import MambaModel
 from megatron_patch.model.qwen3_next.layer_specs import get_qwen3_next_layer_spec, get_qwen3_mtp_block_spec
 from megatron_patch.model.qwen3_next.transformer_config import Qwen3NextTransformerConfig
-from megatron_patch.model.qwen3_next.gated_attention import collect_kv_calibration_scales
+from megatron_patch.model.qwen3_next.gated_attention import collect_qkv_calibration_scales
 
 from qwen3_base_energon_dataloader_provider import train_valid_test_dataloaders_provider
 
@@ -47,7 +47,7 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         config.moe_expert_fake_group_size = args.moe_expert_fake_group_size
         config.moe_expert_fake_activation_type = args.moe_expert_fake_activation_type
         config.moe_expert_fake_activation_group_size = args.moe_expert_fake_activation_group_size
-        config.attention_fake_kv_quantization_type = args.attention_fake_kv_quantization_type
+        config.attention_fake_qkv_quantization_type = args.attention_fake_qkv_quantization_type
 
     assert args.use_legacy_models is False, "Mamba only supported in Mcore!"
 
@@ -131,13 +131,13 @@ if __name__ == "__main__":
         string += f'{key} value: {val:.6E} | {key} PPL: {ppl:.6E} | '
     print_rank_last(string)
 
-    print_rank_0("Collecting KV calibration scales...")
+    print_rank_0("Collecting QKV calibration scales...")
     local_scales = {}
     for model_module in model:
         unwrapped = model_module
         while hasattr(unwrapped, 'module'):
             unwrapped = unwrapped.module
-        layer_scales = collect_kv_calibration_scales(unwrapped)
+        layer_scales = collect_qkv_calibration_scales(unwrapped)
         local_scales.update(layer_scales)
 
     # Gather scales from all PP ranks to PP rank 0
@@ -177,12 +177,12 @@ if __name__ == "__main__":
        parallel_state.get_tensor_model_parallel_rank() == 0 and \
        pp_rank == 0:
         output_dir = args.save if args.save else "."
-        output_path = os.path.join(output_dir, "kv_cache_scales.json")
+        output_path = os.path.join(output_dir, "qkv_cache_scales.json")
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:
             json.dump(all_scales, f, indent=2)
-        print(f"KV cache scales saved to: {output_path}")
-        print(f"Total layers with scales: {len(all_scales) // 2}")
+        print(f"QKV cache scales saved to: {output_path}")
+        print(f"Total layers with scales: {len(all_scales) // 3}")
         for k, v in sorted(all_scales.items()):
             print(f"  {k}: {v:.8e}")
 

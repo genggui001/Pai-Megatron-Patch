@@ -33,6 +33,6 @@ class Qwen3NextTransformerConfig(TransformerConfig):
     moe_expert_fake_activation_type: Optional[str] = None
     moe_expert_fake_activation_group_size: int = 16
 
-    attention_fake_kv_quantization_type: Optional[str] = None
+    attention_fake_qkv_quantization_type: Optional[str] = None
 
 
