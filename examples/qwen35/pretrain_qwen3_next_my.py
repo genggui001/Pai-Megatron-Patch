@@ -59,6 +59,10 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         config.moe_expert_fake_activation_type = args.moe_expert_fake_activation_type
         config.moe_expert_fake_activation_group_size = args.moe_expert_fake_activation_group_size
         config.attention_fake_qkv_quantization_type = args.attention_fake_qkv_quantization_type
+        config.dense_linear_fake_type = args.dense_linear_fake_type
+        config.dense_linear_fake_group_size = args.dense_linear_fake_group_size
+        config.dense_linear_fake_activation_type = args.dense_linear_fake_activation_type
+        config.dense_linear_fake_activation_group_size = args.dense_linear_fake_activation_group_size
 
     assert args.use_legacy_models is False, "Mamba only supported in Mcore!"
 
@@ -94,10 +98,24 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
     #         print(f"Disabling parameter: {name}")
     #         param.requires_grad = False
 
-    for name, m in model.named_modules():
-        fake_quantization_type = getattr(m, "fake_quantization_type", None)
-        if fake_quantization_type is not None:
-            print(f"student_model: {name} is using {fake_quantization_type}.")
+    def _print_fake_quant_modules(model, prefix):
+        for name, m in model.named_modules():
+            weight_type = getattr(m, "fake_quantization_type", None)
+            activation_type = getattr(m, "fake_activation_type", None)
+            if weight_type is None and activation_type is None:
+                continue
+            details = []
+            if weight_type is not None:
+                details.append(
+                    f"weight={weight_type} group={getattr(m, 'fake_group_size', getattr(m, 'fake_quantization_group_size', None))}"
+                )
+            if activation_type is not None:
+                details.append(
+                    f"act={activation_type} group={getattr(m, 'fake_activation_group_size', None)}"
+                )
+            print(f"{prefix}: {name} is using {', '.join(details)}.")
+
+    _print_fake_quant_modules(model, "student_model")
 
     if args.enable_kl_distill:
         assert args.base_model_load is not None, "--base-model-load is required when KL distillation is enabled."
@@ -111,7 +129,12 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         teacher_config.moe_expert_fake_type = None
         teacher_config.moe_expert_fake_group_size = 0
         teacher_config.moe_expert_fake_activation_type = None
+        teacher_config.moe_expert_fake_activation_group_size = 0
         teacher_config.attention_fake_qkv_quantization_type = None
+        teacher_config.dense_linear_fake_type = None
+        teacher_config.dense_linear_fake_group_size = 0
+        teacher_config.dense_linear_fake_activation_type = None
+        teacher_config.dense_linear_fake_activation_group_size = 0
 
         teacher_model = MambaModel(
             config=teacher_config,
@@ -135,10 +158,7 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
             pg_collection=pg_collection,
         )
 
-        for name, m in teacher_model.named_modules():
-            fake_quantization_type = getattr(m, "fake_quantization_type", None)
-            if fake_quantization_type is not None:
-                print(f"teacher_model: {name} is using {fake_quantization_type}.")
+        _print_fake_quant_modules(teacher_model, "teacher_model")
 
         load_teacher_checkpoint(
             teacher_model,

@@ -89,6 +89,8 @@ DISTRIBUTED_ARGS=(
 
 GPT_MODEL_ARGS=(
     --normalization RMSNorm
+    --norm-epsilon 1e-6
+    --apply-layernorm-1p
     --swiglu
     --disable-bias-linear
     --seq-length 1

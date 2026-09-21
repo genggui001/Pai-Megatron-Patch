@@ -659,5 +659,40 @@ def get_patch_args(parser):
         choices=["fp8_e4m3"],
         help="Fake quantization type for attention QKV (query, key, and value).",
     )
+    group.add_argument(
+        "--dense-linear-fake-type",
+        type=str,
+        default=None,
+        choices=["fp8_e4m3", "fake_fp8_e4m3", "fake_int4", "int4", "fake_nvfp4", "nvfp4"],
+        help=(
+            "Fake quantization type for dense TELinear weights "
+            "(GatedDeltaNet in/out, attention QGKV/proj, MTP eh_proj, shared experts)."
+        ),
+    )
+    group.add_argument(
+        "--dense-linear-fake-group-size",
+        type=int,
+        default=0,
+        help=(
+            "Group size for dense TELinear weight fake quantization. "
+            "Must be > 0 when --dense-linear-fake-type is set."
+        ),
+    )
+    group.add_argument(
+        "--dense-linear-fake-activation-type",
+        type=str,
+        default=None,
+        choices=["fp8_e4m3", "nvfp4"],
+        help="Fake quantization type for dense TELinear activations (GEMM inputs).",
+    )
+    group.add_argument(
+        "--dense-linear-fake-activation-group-size",
+        type=int,
+        default=0,
+        help=(
+            "Group size for dense TELinear activation fake quantization. "
+            "Must be > 0 when --dense-linear-fake-activation-type is set."
+        ),
+    )
 
     return parser

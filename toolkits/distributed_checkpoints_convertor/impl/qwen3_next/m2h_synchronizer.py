@@ -50,7 +50,7 @@ class MG2HFSynchronizer(_MG2HFSynchronizer):
             self.set_moe_layer_state(mg_model.mtp.layers[0].transformer_layer.mlp, hf_model.mtp.layers[0].mlp)
             self.copy(mg_model.mtp.layers[0].transformer_layer.pre_mlp_layernorm.weight, hf_model.mtp.layers[0].post_attention_layernorm.weight)
             self.set_gated_selfattn_state(mg_model.mtp.layers[0].transformer_layer.self_attention, hf_model.mtp.layers[0].self_attn)
-            self.copy(mg_model.mtp.layers[0].transformer_layer.self_attention.linear_qgkv.layer_norm_weight, hf_model.mtp.layers[0].input_layernorm.weight)
+            self.copy(mg_model.mtp.layers[0].transformer_layer.input_layernorm.weight, hf_model.mtp.layers[0].input_layernorm.weight)
 
             self.copy(mg_model.mtp.layers[0].enorm.weight, hf_model.mtp.pre_fc_norm_embedding.weight)
             self.copy(mg_model.mtp.layers[0].hnorm.weight,hf_model.mtp.pre_fc_norm_hidden.weight)
@@ -79,7 +79,7 @@ class MG2HFSynchronizer(_MG2HFSynchronizer):
             if self.layout[global_mg_layer_id] == 'M':
                 # Mamba layer
                 self.set_mamba_layer_state(layer.mixer, hf_layer.linear_attn)
-                self.copy(layer.mixer.in_proj.layer_norm_weight, hf_layer.input_layernorm.weight)
+                self.copy(layer.norm.weight, hf_layer.input_layernorm.weight)
             elif self.layout[global_mg_layer_id] == '-':
                 # transformer_layer of MLP
                 self.set_moe_layer_state(layer.mlp, hf_layer.mlp)
@@ -87,7 +87,7 @@ class MG2HFSynchronizer(_MG2HFSynchronizer):
             elif self.layout[global_mg_layer_id] == '*':
                 # transformer_layer of Attention
                 self.set_gated_selfattn_state(layer.self_attention, hf_layer.self_attn)
-                self.copy(layer.self_attention.linear_qgkv.layer_norm_weight, hf_layer.input_layernorm.weight)
+                self.copy(layer.input_layernorm.weight, hf_layer.input_layernorm.weight)
             else:
                 raise ValueError(f"Unrecognized layer type {self.layout[global_mg_layer_id]} in {self.layout}")
 

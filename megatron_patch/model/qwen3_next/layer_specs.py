@@ -2,7 +2,6 @@
 from typing import Optional
 from megatron.core.extensions.transformer_engine import (
     TEDotProductAttention,
-    TELayerNormColumnParallelLinear,
     TERowParallelLinear,
     TEColumnParallelLinear,
     TENorm
@@ -69,6 +68,52 @@ def _resolve_moe_expert_fake_quantization(
     return moe_expert_fake_type, moe_expert_fake_group_size
 
 
+def _resolve_dense_linear_fake_quantization(
+    fake_type: Optional[str],
+    fake_group_size: int,
+    *,
+    type_name: str,
+    group_name: str,
+):
+    if fake_type is None:
+        if fake_group_size > 0:
+            raise ValueError(f"{group_name} requires {type_name} to be set.")
+        return None, 0
+
+    if fake_group_size <= 0:
+        raise ValueError(f"{group_name} must be > 0 when {type_name} is enabled.")
+    return fake_type, fake_group_size
+
+
+def _dense_linear_fake_params(config):
+    weight_type, weight_group_size = _resolve_dense_linear_fake_quantization(
+        getattr(config, "dense_linear_fake_type", None),
+        getattr(config, "dense_linear_fake_group_size", 0),
+        type_name="dense_linear_fake_type",
+        group_name="dense_linear_fake_group_size",
+    )
+    activation_type, activation_group_size = _resolve_dense_linear_fake_quantization(
+        getattr(config, "dense_linear_fake_activation_type", None),
+        getattr(config, "dense_linear_fake_activation_group_size", 0),
+        type_name="dense_linear_fake_activation_type",
+        group_name="dense_linear_fake_activation_group_size",
+    )
+    if weight_type is None and activation_type is None:
+        return None
+    return {
+        "fake_type": weight_type,
+        "fake_group_size": weight_group_size,
+        "fake_activation_type": activation_type,
+        "fake_activation_group_size": activation_group_size,
+    }
+
+
+def _dense_linear_spec(module, dense_params):
+    if dense_params is None:
+        return module
+    return _module_spec_with_params(module, **dense_params)
+
+
 def _maybe_enable_fake_quantization_for_te_grouped_experts(
     expert_module,
     expert_submodule,
@@ -106,6 +151,7 @@ def get_moe_module_spec(
     moe_use_legacy_grouped_gemm: Optional[bool] = False,
     moe_expert_fake_type: Optional[str] = None,
     moe_expert_fake_group_size: int = 0,
+    dense_linear_fake_params: Optional[dict] = None,
 ) -> ModuleSpec:
     """Helper function to get module spec for MoE"""
     if use_te is not None and use_te:
@@ -119,6 +165,7 @@ def get_moe_module_spec(
         moe_use_legacy_grouped_gemm=moe_use_legacy_grouped_gemm,
         moe_expert_fake_type=moe_expert_fake_type,
         moe_expert_fake_group_size=moe_expert_fake_group_size,
+        dense_linear_fake_params=dense_linear_fake_params,
     )
 
 
@@ -130,6 +177,7 @@ def get_moe_module_spec_for_backend(
     use_te_activation_func: bool = False,
     moe_expert_fake_type: Optional[str] = None,
     moe_expert_fake_group_size: int = 0,
+    dense_linear_fake_params: Optional[dict] = None,
 ) -> ModuleSpec:
     """Helper function to get module spec for MoE"""
     assert num_experts is not None
@@ -138,8 +186,10 @@ def get_moe_module_spec_for_backend(
     linear_fc2 = backend.row_parallel_linear()
     activation_func = backend.activation_func()
 
+    shared_fc1 = _dense_linear_spec(linear_fc1, dense_linear_fake_params)
+    shared_fc2 = _dense_linear_spec(linear_fc2, dense_linear_fake_params)
     mlp = MLPSubmodules(
-        linear_fc1=linear_fc1, linear_fc2=linear_fc2, activation_func=activation_func
+        linear_fc1=shared_fc1, linear_fc2=shared_fc2, activation_func=activation_func
     )
 
     expert_module, expert_submodule = backend.grouped_mlp_modules(
@@ -177,16 +227,18 @@ def get_qwen3_mtp_block_spec(args, config):
     if num_layers_to_build == 0:
         return None
 
+    dense_params = _dense_linear_fake_params(config)
     transformer_layer_spec = ModuleSpec(
         module=TransformerLayer,
         submodules=TransformerLayerSubmodules(
+            input_layernorm=TENorm,
             self_attention=ModuleSpec(
                 module=GatedSoftmaxAttention,
                 params={"attn_mask_type": AttnMaskType.causal},
                 submodules=SelfAttentionSubmodules(
-                    linear_qkv=TELayerNormColumnParallelLinear,
+                    linear_qkv=_dense_linear_spec(TEColumnParallelLinear, dense_params),
                     core_attention=TEDotProductAttention,
-                    linear_proj=TERowParallelLinear,
+                    linear_proj=_dense_linear_spec(TERowParallelLinear, dense_params),
                     q_layernorm=TENorm,
                     k_layernorm=TENorm
                 ),
@@ -196,8 +248,11 @@ def get_qwen3_mtp_block_spec(args, config):
             mlp=get_moe_module_spec(
                 num_experts=args.num_experts,
                 moe_grouped_gemm=args.moe_grouped_gemm,
-                moe_expert_fake_type=None,
-                moe_expert_fake_group_size=0,
+                moe_expert_fake_type=getattr(config, "moe_expert_fake_type", None),
+                moe_expert_fake_group_size=getattr(
+                    config, "moe_expert_fake_group_size", 0
+                ),
+                dense_linear_fake_params=dense_params,
             ),
             mlp_bda=get_bias_dropout_add,
         ),
@@ -208,7 +263,7 @@ def get_qwen3_mtp_block_spec(args, config):
         submodules=MultiTokenPredictionLayerSubmodules(
             enorm=TENorm,
             hnorm=TENorm,
-            eh_proj=TEColumnParallelLinear,
+            eh_proj=_dense_linear_spec(TEColumnParallelLinear, dense_params),
             transformer_layer=transformer_layer_spec,
             layer_norm=TENorm,
         ),
@@ -232,16 +287,19 @@ def get_qwen3_mtp_block_spec(args, config):
 
 
 def get_qwen3_next_layer_spec(args, config):
+    dense_params = _dense_linear_fake_params(config)
     return ModuleSpec(
         module=MambaStack,
         submodules=MambaStackSubmodules(
             mamba_layer=ModuleSpec(
                 module=MambaLayer,
                 submodules=MambaLayerSubmodules(
+                    norm=TENorm,
                     mixer=ModuleSpec(
                         module=GatedDeltaNetMixer,
                         submodules=MambaMixerSubmodules(
-                            in_proj=TELayerNormColumnParallelLinear, out_proj=TERowParallelLinear
+                            in_proj=_dense_linear_spec(TEColumnParallelLinear, dense_params),
+                            out_proj=_dense_linear_spec(TERowParallelLinear, dense_params),
                         ),
                     ),
                     mamba_bda=get_bias_dropout_add,
@@ -253,13 +311,14 @@ def get_qwen3_next_layer_spec(args, config):
             attention_layer=ModuleSpec(
                 module=TransformerLayer,
                 submodules=TransformerLayerSubmodules(
+                    input_layernorm=TENorm,
                     self_attention=ModuleSpec(
                         module=GatedSoftmaxAttention,
                         params={"attn_mask_type": AttnMaskType.causal},
                         submodules=SelfAttentionSubmodules(
-                            linear_qkv=TELayerNormColumnParallelLinear,
+                            linear_qkv=_dense_linear_spec(TEColumnParallelLinear, dense_params),
                             core_attention=TEDotProductAttention,
-                            linear_proj=TERowParallelLinear,
+                            linear_proj=_dense_linear_spec(TERowParallelLinear, dense_params),
                             q_layernorm=TENorm,
                             k_layernorm=TENorm
                         ),
@@ -281,6 +340,7 @@ def get_qwen3_next_layer_spec(args, config):
                         moe_expert_fake_group_size=getattr(
                             config, "moe_expert_fake_group_size", 0
                         ),
+                        dense_linear_fake_params=dense_params,
                     ),
                     mlp_bda=get_bias_dropout_add
                 ),

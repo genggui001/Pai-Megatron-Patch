@@ -84,7 +84,12 @@ class MambaLayer(MegatronModule):
             layer_number=layer_number,
             pg_collection=pg_collection,
         )
-        self.norm = build_module(submodules.norm, self.config, self.config.hidden_size)
+        self.norm = build_module(
+            submodules.norm,
+            config=self.config,
+            hidden_size=self.config.hidden_size,
+            eps=self.config.layernorm_epsilon,
+        )
         self.mamba_bda = build_module(submodules.mamba_bda)
         self.bias_dropout_add_exec_handler = torch.enable_grad
 

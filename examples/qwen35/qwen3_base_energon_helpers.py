@@ -241,6 +241,8 @@ class MyTaskEncoder(
                 yield from self.encode_text_sft_iter(sample, is_reasoning=True, only_use_last_message=False)
             elif input_modality == 'same_language_reasoning_with_interleaved_thinking':
                 yield from self.encode_text_sft_iter(sample, is_reasoning=True, only_use_last_message=True)
+            elif input_modality == 'same_language_reasoning_with_interleaved_thinking_use_last_message':
+                yield from self.encode_text_sft_iter(sample, is_reasoning=True, only_use_last_message=True, only_cal_last_message=True)
             elif input_modality == 'english_reasoning':
                 # 特殊处理思考过程+英文指令
                 sample.platform['content'] = (sample.platform['content'] + self.english_reasoning_prompt).strip()
@@ -249,6 +251,10 @@ class MyTaskEncoder(
                 # 特殊处理思考过程+英文指令
                 sample.platform['content'] = (sample.platform['content'] + self.english_reasoning_prompt).strip()
                 yield from self.encode_text_sft_iter(sample, is_reasoning=True, only_use_last_message=True)
+            elif input_modality == 'english_reasoning_with_interleaved_thinking_use_last_message':
+                # 特殊处理思考过程+英文指令
+                sample.platform['content'] = (sample.platform['content'] + self.english_reasoning_prompt).strip()
+                yield from self.encode_text_sft_iter(sample, is_reasoning=True, only_use_last_message=True, only_cal_last_message=True)
             else:
                 raise NotImplementedError('Sample format not supported')
         elif isinstance(sample, TextSample):
@@ -271,7 +277,7 @@ class MyTaskEncoder(
         return text, has_sensitive_word
             
 
-    def encode_text_sft_iter(self, sample: SFTSample, is_reasoning: bool = False, only_use_last_message: bool = False):
+    def encode_text_sft_iter(self, sample: SFTSample, is_reasoning: bool = False, only_use_last_message: bool = False, only_cal_last_message: bool = False):
 
         used_tools = []
         for used_tool in sample.platform.get("tools", []):
@@ -353,7 +359,10 @@ class MyTaskEncoder(
                 reasoning_content = message.get("reasoning_content", None)
                 if reasoning_content is not None and len(reasoning_content) > 0:
                     # 处理思考过程
-                    for start, end in find_subsequences(input_ids, self.think_start_flag, self.end_flag):
+                    tmp_subsequences = find_subsequences(input_ids, self.think_start_flag, self.end_flag)
+                    if only_cal_last_message:
+                        tmp_subsequences = tmp_subsequences[-1:]
+                    for start, end in tmp_subsequences:
                         # train include <think>\n
                         for idx in range(start + len(self.think_start_flag) - 2, end):
                             labels[idx] = input_ids[idx]
@@ -361,7 +370,10 @@ class MyTaskEncoder(
                     # 推理数据没思考过程跳过
                     continue
             else:
-                for start, end in find_subsequences(input_ids, self.no_think_start_flag, self.end_flag):
+                tmp_subsequences = find_subsequences(input_ids, self.no_think_start_flag, self.end_flag)
+                if only_cal_last_message:
+                    tmp_subsequences = tmp_subsequences[-1:]
+                for start, end in tmp_subsequences:
                     for idx in range(start + len(self.no_think_start_flag), end):
                         labels[idx] = input_ids[idx]
 

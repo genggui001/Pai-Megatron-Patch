@@ -35,4 +35,9 @@ class Qwen3NextTransformerConfig(TransformerConfig):
 
     attention_fake_qkv_quantization_type: Optional[str] = None
 
+    dense_linear_fake_type: Optional[str] = None
+    dense_linear_fake_group_size: int = 0
+    dense_linear_fake_activation_type: Optional[str] = None
+    dense_linear_fake_activation_group_size: int = 0
+
 

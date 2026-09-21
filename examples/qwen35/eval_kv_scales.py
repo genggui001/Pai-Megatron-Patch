@@ -48,6 +48,10 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         config.moe_expert_fake_activation_type = args.moe_expert_fake_activation_type
         config.moe_expert_fake_activation_group_size = args.moe_expert_fake_activation_group_size
         config.attention_fake_qkv_quantization_type = args.attention_fake_qkv_quantization_type
+        config.dense_linear_fake_type = args.dense_linear_fake_type
+        config.dense_linear_fake_group_size = args.dense_linear_fake_group_size
+        config.dense_linear_fake_activation_type = args.dense_linear_fake_activation_type
+        config.dense_linear_fake_activation_group_size = args.dense_linear_fake_activation_group_size
 
     assert args.use_legacy_models is False, "Mamba only supported in Mcore!"
 

@@ -49,7 +49,7 @@ class HF2MGSynchronizer(_HF2MGSynchronizer):
             self.set_moe_layer_state(mg_model.mtp.layers[0].transformer_layer.mlp, hf_model.mtp.layers[0].mlp)
             self.copy(hf_model.mtp.layers[0].post_attention_layernorm.weight, mg_model.mtp.layers[0].transformer_layer.pre_mlp_layernorm.weight)
             self.set_gated_selfattn_state(mg_model.mtp.layers[0].transformer_layer.self_attention, hf_model.mtp.layers[0].self_attn)
-            self.copy(hf_model.mtp.layers[0].input_layernorm.weight, mg_model.mtp.layers[0].transformer_layer.self_attention.linear_qgkv.layer_norm_weight)
+            self.copy(hf_model.mtp.layers[0].input_layernorm.weight, mg_model.mtp.layers[0].transformer_layer.input_layernorm.weight)
 
             self.copy(hf_model.mtp.pre_fc_norm_embedding.weight, mg_model.mtp.layers[0].enorm.weight)
             self.copy(hf_model.mtp.pre_fc_norm_hidden.weight, mg_model.mtp.layers[0].hnorm.weight)
@@ -78,7 +78,7 @@ class HF2MGSynchronizer(_HF2MGSynchronizer):
             if self.layout[global_mg_layer_id] == 'M':
                 # Mamba layer
                 self.set_mamba_layer_state(layer.mixer, hf_layer.linear_attn)
-                self.copy(hf_layer.input_layernorm.weight, layer.mixer.in_proj.layer_norm_weight)
+                self.copy(hf_layer.input_layernorm.weight, layer.norm.weight)
             elif self.layout[global_mg_layer_id] == '-':
                 # transformer_layer of MLP
                 self.set_moe_layer_state(layer.mlp, hf_layer.mlp)
@@ -86,7 +86,7 @@ class HF2MGSynchronizer(_HF2MGSynchronizer):
             elif self.layout[global_mg_layer_id] == '*':
                 # transformer_layer of Attention
                 self.set_gated_selfattn_state(layer.self_attention, hf_layer.self_attn)
-                self.copy(hf_layer.input_layernorm.weight, layer.self_attention.linear_qgkv.layer_norm_weight)
+                self.copy(hf_layer.input_layernorm.weight, layer.input_layernorm.weight)
             else:
                 raise ValueError(f"Unrecognized layer type {self.layout[global_mg_layer_id]} in {self.layout}")
 
