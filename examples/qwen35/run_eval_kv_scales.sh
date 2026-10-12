@@ -262,9 +262,14 @@ megatron_options="  \
         --rotary-percent 0.25 \
         --apply-layernorm-1p \
         --moe-expert-fake-type fake_int4 \
-        --moe-expert-fake-group-size 128 \
+        --moe-expert-fake-group-size 32 \
         --moe-expert-fake-activation-type fp8_e4m3 \
+        --moe-expert-fake-activation-group-size 32 \
         --attention-fake-qkv-quantization-type fp8_e4m3 \
+        --dense-linear-fake-type fp8_e4m3 \
+        --dense-linear-fake-group-size 32 \
+        --dense-linear-fake-activation-type fp8_e4m3 \
+        --dense-linear-fake-activation-group-size 32 \
         --train-mode finetune \
         --eod-mask-loss
         "
