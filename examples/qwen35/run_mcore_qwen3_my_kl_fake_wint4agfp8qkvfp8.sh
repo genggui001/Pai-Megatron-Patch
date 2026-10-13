@@ -67,7 +67,7 @@ KL_LOSS_TEMPERATURE=${31}
 if [ $FL = true ]; then
     export NVTE_FLASH_ATTN=1 NVTE_FUSED_ATTN=0
     attn_backend_option=" \
-        --attention-backend flash
+        --attention-backend qdq_flash_attn
     "
 elif [ $FL = false ]; then
     export NVTE_FLASH_ATTN=0 NVTE_FUSED_ATTN=1

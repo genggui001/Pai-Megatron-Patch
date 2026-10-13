@@ -26,7 +26,7 @@ from megatron.core.utils import (
     nvtx_range_push,
 )
 from megatron.core.transformer.attention import Attention, SelfAttentionSubmodules
-from megatron.core.transformer.enums import AttnMaskType
+from megatron.core.transformer.enums import AttnBackend, AttnMaskType
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 try:
@@ -261,6 +261,68 @@ class GatedSoftmaxAttention(Attention):
 
         return query, gate, key, value
 
+    def _qdq_flash_varlen_attention(
+        self,
+        query: Tensor,
+        key: Tensor,
+        value: Tensor,
+        query_scale: Tensor,
+        key_scale: Tensor,
+        value_scale: Tensor,
+        attn_mask_type: AttnMaskType,
+        packed_seq_params: Optional[PackedSeqParams],
+    ) -> Tensor:
+        """Packed BF16 attention with FP8 QDQ inside flash_attn_varlen_func_fp8_qdq."""
+        if packed_seq_params is None or packed_seq_params.qkv_format != "thd":
+            raise ValueError(
+                "--attention-backend qdq_flash_attn requires packed sequences (qkv_format=thd)."
+            )
+        if self.config.context_parallel_size != 1:
+            raise ValueError(
+                "--attention-backend qdq_flash_attn requires context parallel size 1."
+            )
+        if attn_mask_type not in (
+            AttnMaskType.causal,
+            AttnMaskType.padding_causal,
+            AttnMaskType.causal_bottom_right,
+        ):
+            raise ValueError(
+                "--attention-backend qdq_flash_attn only supports causal masks, "
+                f"got {attn_mask_type}."
+            )
+        if query.dtype != torch.bfloat16:
+            raise ValueError(
+                "--attention-backend qdq_flash_attn requires BF16 QKV, "
+                f"got {query.dtype}."
+            )
+
+        from qdq.flash_attn import flash_attn_varlen_func_fp8_qdq
+
+        def _python_int(value) -> int:
+            if isinstance(value, torch.Tensor):
+                return int(value.item())
+            return int(value)
+
+        window_size = self.config.window_size if self.config.window_size is not None else (-1, -1)
+        return flash_attn_varlen_func_fp8_qdq(
+            query.contiguous(),
+            key.contiguous(),
+            value.contiguous(),
+            packed_seq_params.cu_seqlens_q.to(dtype=torch.int32).contiguous(),
+            packed_seq_params.cu_seqlens_kv.to(dtype=torch.int32).contiguous(),
+            _python_int(packed_seq_params.max_seqlen_q),
+            _python_int(packed_seq_params.max_seqlen_kv),
+            dropout_p=self.config.attention_dropout,
+            softmax_scale=self.config.softmax_scale,
+            causal=True,
+            window_size=tuple(window_size),
+            deterministic=self.config.deterministic_mode,
+            query_scale=query_scale,
+            key_scale=key_scale,
+            value_scale=value_scale,
+            qdq_mode="fa3",
+        )
+
     def backward_dw(self) -> NoReturn:
         """Execute weight update operations"""
         self._backward_qkv_proj()
@@ -450,8 +512,16 @@ class GatedSoftmaxAttention(Attention):
         # QKV fake quantization (before core attention)
         # Scale synchronized across TP ranks for consistency with vLLM inference
         # scale = global_amax / FP8_E4M3_MAX, clamped to avoid zero
+        # qdq_flash_attn consumes these scales inside the kernel and skips STE.
         # ==================================
-        if self.fake_qkv_quantization_type is not None:
+        use_qdq_flash_attn = self.config.attention_backend == AttnBackend.qdq_flash_attn
+        query_scale = key_scale = value_scale = None
+        if self.fake_qkv_quantization_type is not None or use_qdq_flash_attn:
+            if use_qdq_flash_attn and self.fake_qkv_quantization_type != "fp8_e4m3":
+                raise ValueError(
+                    "--attention-backend qdq_flash_attn requires "
+                    "--attention-fake-qkv-quantization-type fp8_e4m3."
+                )
             _FP8_E4M3_MAX = torch.finfo(torch.float8_e4m3fn).max
             _TINY = torch.finfo(torch.float32).tiny
 
@@ -478,16 +548,32 @@ class GatedSoftmaxAttention(Attention):
             query_scale = (query_amax / _FP8_E4M3_MAX).clamp_min(_TINY)
             key_scale = (key_amax / _FP8_E4M3_MAX).clamp_min(_TINY)
             value_scale = (value_amax / _FP8_E4M3_MAX).clamp_min(_TINY)
-            query = self._fake_qkv_ste(query, scale=query_scale)
-            key = self._fake_qkv_ste(key, scale=key_scale)
-            value = self._fake_qkv_ste(value, scale=value_scale)
+            if not use_qdq_flash_attn:
+                query = self._fake_qkv_ste(query, scale=query_scale)
+                key = self._fake_qkv_ste(key, scale=key_scale)
+                value = self._fake_qkv_ste(value, scale=value_scale)
 
         # ==================================
         # core attention computation
         # ==================================
 
         nvtx_range_push(suffix="core_attention")
-        if self.checkpoint_core_attention and self.training:
+        if use_qdq_flash_attn:
+            if inference_context is not None and not inference_context.is_static_batching():
+                raise ValueError(
+                    "--attention-backend qdq_flash_attn does not support dynamic batching."
+                )
+            core_attn_out = self._qdq_flash_varlen_attention(
+                query,
+                key,
+                value,
+                query_scale,
+                key_scale,
+                value_scale,
+                attn_mask_type,
+                packed_seq_params,
+            )
+        elif self.checkpoint_core_attention and self.training:
             core_attn_out = self._checkpointed_attention_forward(
                 query,
                 key,

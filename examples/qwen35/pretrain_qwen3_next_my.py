@@ -21,6 +21,7 @@ import torch
 import torch._dynamo
 
 from megatron.core.enums import ModelType
+from megatron.core.transformer.enums import AttnBackend
 from model_provider import model_provider as base_model_provider # Megatron-LM-250908/model_provider.py
 
 from megatron.training.arguments import core_transformer_config_from_args
@@ -63,6 +64,16 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         config.dense_linear_fake_group_size = args.dense_linear_fake_group_size
         config.dense_linear_fake_activation_type = args.dense_linear_fake_activation_type
         config.dense_linear_fake_activation_group_size = args.dense_linear_fake_activation_group_size
+
+    if (
+        config.attention_backend == AttnBackend.qdq_flash_attn
+        and not getattr(mamba_builder, "_logged_qdq_flash_attn", False)
+    ):
+        print_rank_0(
+            "Selected attention operator qdq_flash_attn: "
+            "flash_attn_varlen_func_fp8_qdq(qdq_mode=fa3)."
+        )
+        mamba_builder._logged_qdq_flash_attn = True
 
     assert args.use_legacy_models is False, "Mamba only supported in Mcore!"
 
@@ -131,6 +142,7 @@ def mamba_builder(args, pre_process, post_process, vp_stage=None, config=None, p
         teacher_config.moe_expert_fake_activation_type = None
         teacher_config.moe_expert_fake_activation_group_size = 0
         teacher_config.attention_fake_qkv_quantization_type = None
+        teacher_config.attention_backend = AttnBackend.flash
         teacher_config.dense_linear_fake_type = None
         teacher_config.dense_linear_fake_group_size = 0
         teacher_config.dense_linear_fake_activation_type = None
